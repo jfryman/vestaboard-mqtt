@@ -1,8 +1,6 @@
 # Example override file for development
 # Copy to docker-compose.override.yml and customize as needed
 
-version: '3.8'
-
 services:
   vestaboard-mqtt:
     # Development overrides
