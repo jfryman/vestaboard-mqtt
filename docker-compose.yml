@@ -1,0 +1,38 @@
+services:
+  vestaboard-mqtt:
+    build: .
+    container_name: vestaboard-mqtt-bridge
+    restart: unless-stopped
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Expose HTTP port for health checks and metrics
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
+    
+    # Health check using the built-in endpoint
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'

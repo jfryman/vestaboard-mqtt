@@ -1,0 +1,25 @@
+# Example override file for development
+# Copy to docker-compose.override.yml and customize as needed
+
+version: '3.8'
+
+services:
+  vestaboard-mqtt:
+    # Development overrides
+    volumes:
+      # Mount source code for development (hot reload)
+      - ./src:/app/src:ro
+      - ./run.py:/app/run.py:ro
+    
+    # Override environment variables for development
+    environment:
+      - LOG_LEVEL=DEBUG
+      - HTTP_PORT=8001
+    
+    # Expose different port for development
+    ports:
+      - "8001:8000"
+    
+    # Remove resource limits for development
+    deploy:
+      resources: {}
