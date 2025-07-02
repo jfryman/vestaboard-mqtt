@@ -21,7 +21,8 @@ def load_config():
             "username": os.getenv("MQTT_USERNAME"),
             "password": os.getenv("MQTT_PASSWORD")
         },
-        "http_port": int(os.getenv("HTTP_PORT", "8000"))
+        "http_port": int(os.getenv("HTTP_PORT", "8000")),
+        "max_queue_size": int(os.getenv("MAX_QUEUE_SIZE", "10"))
     }
     
     # Validate required configuration
@@ -44,7 +45,8 @@ def main():
         # Initialize MQTT bridge
         mqtt_bridge = VestaboardMQTTBridge(
             config["vestaboard_api_key"],
-            config["mqtt"]
+            config["mqtt"],
+            config["max_queue_size"]
         )
         
         # Create HTTP API

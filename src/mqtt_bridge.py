@@ -13,14 +13,15 @@ from .logger import setup_logger
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
     
-    def __init__(self, vestaboard_api_key: str, mqtt_config: Dict):
+    def __init__(self, vestaboard_api_key: str, mqtt_config: Dict, max_queue_size: int = 10):
         """Initialize the MQTT bridge.
         
         Args:
             vestaboard_api_key: Vestaboard Read/Write API key
             mqtt_config: MQTT broker configuration
+            max_queue_size: Maximum number of messages to queue when rate limited
         """
-        self.vestaboard_client = VestaboardClient(vestaboard_api_key)
+        self.vestaboard_client = VestaboardClient(vestaboard_api_key, max_queue_size)
         self.mqtt_config = mqtt_config
         self.mqtt_client = mqtt.Client()
         self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client)
