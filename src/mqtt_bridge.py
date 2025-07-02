@@ -3,7 +3,7 @@
 import json
 import threading
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, List
 import paho.mqtt.client as mqtt
 from .vestaboard_client import VestaboardClient
 from .save_state_manager import SaveStateManager
@@ -280,9 +280,9 @@ class VestaboardMQTTBridge:
         
         # Schedule restoration
         def restore_previous():
-            self.logger.info(f"Timer {timer_id} expired, restoring previous state")
-            # Use the same restoration logic as manual restore requests
+            self.logger.info(f"Timer {timer_id} expired, restoring from slot {restore_slot}")
             self._restore_from_slot(restore_slot)
+            # Clean up timer tracking
             if timer_id in self.active_timers:
                 del self.active_timers[timer_id]
         
@@ -292,6 +292,8 @@ class VestaboardMQTTBridge:
         
         self.logger.info(f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})")
         return timer_id
+    
+    
     
     def cancel_timed_message(self, timer_id: str) -> bool:
         """Cancel a scheduled timed message.

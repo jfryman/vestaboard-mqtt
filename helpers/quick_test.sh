@@ -3,20 +3,25 @@
 
 set -e
 
-# Configuration
-MQTT_HOST="${MQTT_HOST:-localhost}"
-MQTT_PORT="${MQTT_PORT:-1883}"
-MQTT_USER="${MQTT_USER:-}"
-MQTT_PASS="${MQTT_PASS:-}"
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# Configuration - Uses same variables as .env.example
+MQTT_BROKER_HOST="${MQTT_BROKER_HOST:-localhost}"
+MQTT_BROKER_PORT="${MQTT_BROKER_PORT:-1883}"
+MQTT_USERNAME="${MQTT_USERNAME:-}"
+MQTT_PASSWORD="${MQTT_PASSWORD:-}"
 
 # Build mosquitto_pub command
-MQTT_CMD="mosquitto_pub -h $MQTT_HOST -p $MQTT_PORT"
-if [ -n "$MQTT_USER" ] && [ -n "$MQTT_PASS" ]; then
-    MQTT_CMD="$MQTT_CMD -u $MQTT_USER -P $MQTT_PASS"
+MQTT_CMD="mosquitto_pub -h $MQTT_BROKER_HOST -p $MQTT_BROKER_PORT"
+if [ -n "$MQTT_USERNAME" ] && [ -n "$MQTT_PASSWORD" ]; then
+    MQTT_CMD="$MQTT_CMD -u $MQTT_USERNAME -P $MQTT_PASSWORD"
 fi
 
 echo "🚀 Vestaboard MQTT Bridge - Quick Test Script"
-echo "📡 Using MQTT broker: $MQTT_HOST:$MQTT_PORT"
+echo "📡 Using MQTT broker: $MQTT_BROKER_HOST:$MQTT_BROKER_PORT"
 echo
 
 # Function to send message
@@ -93,14 +98,55 @@ send_message "vestaboard/restore/test-backup" ""
 sleep 2
 
 echo
-echo "8️⃣ Cleaning up - deleting test backup..."
+echo "8️⃣ Testing smart restore logic (edge case)..."
+echo "📝 This tests the new feature where timed messages don't restore if display was changed"
+send_message "vestaboard/message" "Initial Smart Test State"
+sleep 2
+send_message "vestaboard/save/smart-test-backup" ""
+sleep 2
+echo "🕐 Starting 15-second timed message..."
+send_message "vestaboard/timed-message" '{
+  "message": "⏱️ SMART TIMER TEST ⏱️",
+  "duration_seconds": 15,
+  "restore_slot": "smart-test-backup"
+}'
+wait_with_countdown 5 "Letting timed message display for 5 seconds..."
+echo "🚨 Sending alert to override timed message..."
+send_message "vestaboard/message" "🚨 URGENT ALERT! 🚨"
+wait_with_countdown 12 "Timer will expire in ~10 seconds. Should NOT restore due to alert override..."
+echo "📊 Result: If display still shows 'URGENT ALERT!' then smart restore worked!"
+sleep 2
+
+echo
+echo "9️⃣ Testing normal restore behavior (control test)..."
+send_message "vestaboard/message" "Normal Restore Test State"
+sleep 2
+send_message "vestaboard/save/normal-test-backup" ""
+sleep 2
+echo "🕐 Starting 8-second timed message that should restore normally..."
+send_message "vestaboard/timed-message" '{
+  "message": "⏱️ NORMAL TIMER TEST ⏱️",
+  "duration_seconds": 8,
+  "restore_slot": "normal-test-backup"
+}'
+wait_with_countdown 10 "Timer should restore in 8 seconds (no interruption)..."
+echo "📊 Result: Display should show 'Normal Restore Test State' (restored)"
+sleep 2
+
+echo
+echo "🔟 Cleaning up test backups..."
 send_message "vestaboard/delete/test-backup" ""
+send_message "vestaboard/delete/smart-test-backup" ""
+send_message "vestaboard/delete/normal-test-backup" ""
 sleep 2
 
 echo
 echo "✅ Test script completed!"
+echo "📊 Smart Restore Test Summary:"
+echo "   - Test 8: Alert should override timer (no restore)"
+echo "   - Test 9: Normal timer should restore properly"
 echo "📝 Note: To see responses, run in another terminal:"
-echo "   mosquitto_sub -h $MQTT_HOST -p $MQTT_PORT -t 'vestaboard/+' -t 'test/+'"
+echo "   mosquitto_sub -h $MQTT_BROKER_HOST -p $MQTT_BROKER_PORT -t 'vestaboard/+' -t 'test/+'"
 echo
 echo "🎮 For interactive testing, use:"
 echo "   python3 helpers/test_messages.py --interactive"
