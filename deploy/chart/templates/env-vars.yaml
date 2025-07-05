@@ -1,0 +1,21 @@
+{{- if .Values.externalSecrets.enabled }}
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: {{ include "vestaboard-mqtt.fullname" . }}-secrets
+spec:
+  refreshInterval: {{ .Values.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.externalSecrets.secretStore.name }}
+    kind: {{ .Values.externalSecrets.secretStore.kind }}
+  target:
+    name: {{ include "vestaboard-mqtt.fullname" . }}-secrets
+    creationPolicy: Owner
+  data:
+    {{- range .Values.externalSecrets.secrets }}
+    - secretKey: {{ .secretKey }}
+      remoteRef:
+        key: {{ .remoteRef.key }}
+        property: {{ .remoteRef.property }}
+    {{- end }}
+{{- end }}
