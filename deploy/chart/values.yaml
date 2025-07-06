@@ -137,3 +137,11 @@ externalSecrets:
       remoteRef:
         key: vestaboard-mqtt/mqtt
         property: password
+    - secretKey: HTTP_PORT
+      remoteRef:
+        key: vestaboard-mqtt/config
+        property: http_port
+    - secretKey: LOG_LEVEL
+      remoteRef:
+        key: vestaboard-mqtt/config
+        property: log_level
