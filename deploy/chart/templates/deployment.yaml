@@ -40,8 +40,14 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
-          {{- if .Values.externalSecrets.enabled }} 
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.externalSecrets.enabled }}
           envFrom:
+            # External secrets for sensitive data
             - secretRef:
                 name: vestaboard-mqtt-secrets
           {{- end }}

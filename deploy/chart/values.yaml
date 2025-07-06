@@ -110,6 +110,14 @@ tolerations: []
 
 affinity: {}
 
+# Regular environment variables for non-sensitive configuration
+env:
+  MQTT_BROKER_HOST: "localhost"
+  MQTT_BROKER_PORT: "1883"
+  HTTP_PORT: "8000"
+  LOG_LEVEL: "INFO"
+
+# External secrets for sensitive data only
 externalSecrets:
   enabled: true
   refreshInterval: 1h
@@ -121,14 +129,6 @@ externalSecrets:
       remoteRef:
         key: vestaboard-mqtt/api
         property: key
-    - secretKey: MQTT_BROKER_HOST
-      remoteRef:
-        key: vestaboard-mqtt/mqtt
-        property: host
-    - secretKey: MQTT_BROKER_PORT
-      remoteRef:
-        key: vestaboard-mqtt/mqtt
-        property: port
     - secretKey: MQTT_USERNAME
       remoteRef:
         key: vestaboard-mqtt/mqtt
@@ -137,11 +137,3 @@ externalSecrets:
       remoteRef:
         key: vestaboard-mqtt/mqtt
         property: password
-    - secretKey: HTTP_PORT
-      remoteRef:
-        key: vestaboard-mqtt/config
-        property: http_port
-    - secretKey: LOG_LEVEL
-      remoteRef:
-        key: vestaboard-mqtt/config
-        property: log_level
