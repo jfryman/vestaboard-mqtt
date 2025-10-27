@@ -5,7 +5,7 @@ import threading
 import time
 from typing import Dict, Optional, Union, List
 import paho.mqtt.client as mqtt
-from .vestaboard_client import VestaboardClient
+from .vestaboard_client import create_vestaboard_client
 from .save_state_manager import SaveStateManager
 from .logger import setup_logger
 
@@ -13,15 +13,18 @@ from .logger import setup_logger
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
     
-    def __init__(self, vestaboard_api_key: str, mqtt_config: Dict, max_queue_size: int = 10):
+    def __init__(self, vestaboard_api_key: str = None, mqtt_config: Dict = None, max_queue_size: int = 10):
         """Initialize the MQTT bridge.
         
         Args:
-            vestaboard_api_key: Vestaboard Read/Write API key
+            vestaboard_api_key: Vestaboard API key (cloud or local), or None to auto-detect from env
             mqtt_config: MQTT broker configuration
             max_queue_size: Maximum number of messages to queue when rate limited
         """
-        self.vestaboard_client = VestaboardClient(vestaboard_api_key, max_queue_size)
+        self.vestaboard_client = create_vestaboard_client(
+            api_key=vestaboard_api_key,
+            max_queue_size=max_queue_size
+        )
         self.mqtt_config = mqtt_config
         self.mqtt_client = mqtt.Client()
         self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client)

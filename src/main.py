@@ -14,7 +14,7 @@ def load_config():
     load_dotenv()
     
     config = {
-        "vestaboard_api_key": os.getenv("VESTABOARD_API_KEY"),
+        "vestaboard_api_key": os.getenv("VESTABOARD_API_KEY") or os.getenv("VESTABOARD_LOCAL_API_KEY"),
         "mqtt": {
             "host": os.getenv("MQTT_BROKER_HOST", "localhost"),
             "port": int(os.getenv("MQTT_BROKER_PORT", "1883")),
@@ -25,9 +25,11 @@ def load_config():
         "max_queue_size": int(os.getenv("MAX_QUEUE_SIZE", "10"))
     }
     
-    # Validate required configuration
+    # Validate required configuration - API key will be auto-detected by factory function
+    # Keep validation for backward compatibility but make it more flexible
     if not config["vestaboard_api_key"]:
-        raise ValueError("VESTABOARD_API_KEY environment variable is required")
+        # Let the factory function handle the error with more detailed messaging
+        config["vestaboard_api_key"] = None
     
     return config
 

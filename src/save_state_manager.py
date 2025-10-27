@@ -4,14 +4,14 @@ import json
 import time
 from typing import Dict, List, Optional
 import paho.mqtt.client as mqtt
-from .vestaboard_client import VestaboardClient
+from .vestaboard_client import BaseVestaboardClient
 from .logger import setup_logger
 
 
 class SaveStateManager:
     """Manages save and restore functionality for Vestaboard states."""
     
-    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: VestaboardClient):
+    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: BaseVestaboardClient):
         """Initialize the save state manager.
         
         Args:
