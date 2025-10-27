@@ -110,6 +110,27 @@ tolerations: []
 
 affinity: {}
 
+# Vestaboard API configuration
+vestaboard:
+  # Set to true to use Local API instead of Cloud API
+  useLocalApi: false
+
+  # Local API configuration (only used when useLocalApi is true)
+  localApi:
+    host: "vestaboard.local"
+    port: "7000"
+
+  # Cloud API configuration (only used when useLocalApi is false)
+  cloudApi:
+    # API key will be provided via externalSecrets
+    secretKeyPath: "vestaboard-mqtt/api"
+    secretKeyProperty: "key"
+
+  # Local API key configuration (only used when useLocalApi is true)
+  localApiSecret:
+    secretKeyPath: "vestaboard-mqtt/local-api"
+    secretKeyProperty: "key"
+
 # Regular environment variables for non-sensitive configuration
 env:
   MQTT_BROKER_HOST: "localhost"
@@ -124,11 +145,8 @@ externalSecrets:
   secretStore:
     name: vault-cluster-backend
     kind: ClusterSecretStore
-  secrets:
-    - secretKey: VESTABOARD_API_KEY
-      remoteRef:
-        key: vestaboard-mqtt/api
-        property: key
+  # MQTT credentials (always included)
+  mqttSecrets:
     - secretKey: MQTT_USERNAME
       remoteRef:
         key: vestaboard-mqtt/mqtt

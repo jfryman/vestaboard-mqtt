@@ -12,7 +12,22 @@ spec:
     name: {{ include "vestaboard-mqtt.fullname" . }}-secrets
     creationPolicy: Owner
   data:
-    {{- range .Values.externalSecrets.secrets }}
+    # Conditionally include Cloud API key OR Local API key based on vestaboard.useLocalApi
+    {{- if .Values.vestaboard.useLocalApi }}
+    # Local API mode - include Local API key
+    - secretKey: VESTABOARD_LOCAL_API_KEY
+      remoteRef:
+        key: {{ .Values.vestaboard.localApiSecret.secretKeyPath }}
+        property: {{ .Values.vestaboard.localApiSecret.secretKeyProperty }}
+    {{- else }}
+    # Cloud API mode - include Cloud API key
+    - secretKey: VESTABOARD_API_KEY
+      remoteRef:
+        key: {{ .Values.vestaboard.cloudApi.secretKeyPath }}
+        property: {{ .Values.vestaboard.cloudApi.secretKeyProperty }}
+    {{- end }}
+    # MQTT credentials (always included)
+    {{- range .Values.externalSecrets.mqttSecrets }}
     - secretKey: {{ .secretKey }}
       remoteRef:
         key: {{ .remoteRef.key }}

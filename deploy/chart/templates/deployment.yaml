@@ -45,6 +45,19 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- if .Values.vestaboard.useLocalApi }}
+            # Local API mode environment variables
+            - name: USE_LOCAL_API
+              value: "true"
+            - name: VESTABOARD_LOCAL_HOST
+              value: {{ .Values.vestaboard.localApi.host | quote }}
+            - name: VESTABOARD_LOCAL_PORT
+              value: {{ .Values.vestaboard.localApi.port | quote }}
+            {{- else }}
+            # Cloud API mode - ensure USE_LOCAL_API is false
+            - name: USE_LOCAL_API
+              value: "false"
+            {{- end }}
           {{- if .Values.externalSecrets.enabled }}
           envFrom:
             # External secrets for sensitive data
