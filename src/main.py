@@ -53,7 +53,7 @@ def load_config():
         }
 
     config = {
-        "vestaboard_api_key": os.getenv("VESTABOARD_API_KEY") or os.getenv("VESTABOARD_LOCAL_API_KEY"),
+        "vestaboard_api_key": os.getenv("VESTABOARD_LOCAL_API_KEY") or os.getenv("VESTABOARD_API_KEY"),
         "mqtt": mqtt_config,
         "http_port": int(os.getenv("HTTP_PORT", "8000")),
         "max_queue_size": int(os.getenv("MAX_QUEUE_SIZE", "10"))

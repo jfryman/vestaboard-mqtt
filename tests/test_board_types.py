@@ -49,23 +49,25 @@ class TestCharacterMaps:
         assert CHAR_CODE_MAP[26] == 'Z'
 
     def test_char_code_map_has_numbers(self):
-        """Test that codes 27-36 map to 0-9."""
-        assert CHAR_CODE_MAP[27] == '0'
-        assert CHAR_CODE_MAP[36] == '9'
+        """Test that codes 27-36 map to numbers (1-9, then 0)."""
+        assert CHAR_CODE_MAP[27] == '1'
+        assert CHAR_CODE_MAP[35] == '9'
+        assert CHAR_CODE_MAP[36] == '0'
 
     def test_char_code_map_has_special_chars(self):
         """Test special character mappings."""
         assert CHAR_CODE_MAP[37] == '!'
-        assert CHAR_CODE_MAP[63] == '?'
-        assert CHAR_CODE_MAP[64] == '°'
+        assert CHAR_CODE_MAP[60] == '?'
+        # Note: codes 63+ are colored blocks, not standard ASCII
 
     def test_text_to_code_map_inverse(self):
         """Test that TEXT_TO_CODE_MAP is inverse of relevant CHAR_CODE_MAP entries."""
         assert TEXT_TO_CODE_MAP[' '] == 0
         assert TEXT_TO_CODE_MAP['A'] == 1
         assert TEXT_TO_CODE_MAP['Z'] == 26
-        assert TEXT_TO_CODE_MAP['0'] == 27
-        assert TEXT_TO_CODE_MAP['9'] == 36
+        assert TEXT_TO_CODE_MAP['1'] == 27
+        assert TEXT_TO_CODE_MAP['9'] == 35
+        assert TEXT_TO_CODE_MAP['0'] == 36
 
 
 class TestTextToLayout:

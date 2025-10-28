@@ -6,6 +6,7 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.1
 pytest-asyncio>=0.21.0
+httpx<0.28,>=0.27  # For FastAPI TestClient compatibility
 
 # Code quality
 black>=23.7.0
