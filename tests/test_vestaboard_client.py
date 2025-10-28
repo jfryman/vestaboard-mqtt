@@ -2,7 +2,8 @@
 
 import os
 import pytest
-from unittest.mock import Mock, patch
+import requests
+from unittest.mock import Mock, patch, MagicMock
 from src.vestaboard_client import (
     BoardType,
     VestaboardClient,
@@ -220,3 +221,66 @@ class TestClientBoardTypeUsage:
             # Should be a 3x15 layout for NOTE board
             assert len(layout) == 3
             assert all(len(row) == 15 for row in layout)
+
+
+class TestLocalClientReadCurrentMessage:
+    """Test LocalVestaboardClient.read_current_message() handles different response formats."""
+
+    @patch('src.vestaboard_client.requests.get')
+    def test_read_current_message_with_direct_array_response(self, mock_get):
+        """Test read_current_message with direct array response (no wrapper)."""
+        # Mock response with direct array (format 1)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        test_layout = [[0, 1, 2], [3, 4, 5]]
+        mock_response.json.return_value = test_layout
+        mock_get.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.read_current_message()
+
+        # Verify result structure
+        assert result is not None
+        assert "currentMessage" in result
+        assert "layout" in result["currentMessage"]
+        assert "id" in result["currentMessage"]
+
+        # Layout should be the array directly
+        assert result["currentMessage"]["layout"] == test_layout
+        assert isinstance(result["currentMessage"]["layout"], list)
+
+    @patch('src.vestaboard_client.requests.get')
+    def test_read_current_message_with_message_wrapper(self, mock_get):
+        """Test read_current_message with message wrapper (fixes bug)."""
+        # Mock response with "message" wrapper (format 2)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        test_layout = [[0, 1, 2], [3, 4, 5]]
+        mock_response.json.return_value = {"message": test_layout}
+        mock_get.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.read_current_message()
+
+        # Verify result structure
+        assert result is not None
+        assert "currentMessage" in result
+        assert "layout" in result["currentMessage"]
+
+        # Layout should be extracted from the "message" wrapper
+        assert result["currentMessage"]["layout"] == test_layout
+        assert isinstance(result["currentMessage"]["layout"], list)
+        # Ensure it's NOT the dict wrapper
+        assert not isinstance(result["currentMessage"]["layout"], dict)
+
+    @patch('src.vestaboard_client.requests.get')
+    def test_read_current_message_error_handling(self, mock_get):
+        """Test read_current_message handles request errors gracefully."""
+        # Mock request exception
+        mock_get.side_effect = requests.RequestException("Connection error")
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.read_current_message()
+
+        # Should return None on error
+        assert result is None

@@ -373,43 +373,58 @@ class VestaboardMQTTBridge:
         except Exception as e:
             self.logger.error(f"Error handling list timers request: {e}")
     
-    def schedule_timed_message(self, message: str, duration_seconds: int, 
+    def schedule_timed_message(self, message: str, duration_seconds: int,
                              restore_slot: Optional[str] = None) -> str:
         """Schedule a timed message with optional auto-restore.
-        
+
         Args:
             message: Message to display
             duration_seconds: How long to display the message
             restore_slot: Optional slot to restore from after timer expires
-            
+
         Returns:
             Timer ID for cancellation
         """
         timer_id = f"timer_{int(time.time())}"
-        
+
         # Save current state if no restore slot specified
         if restore_slot is None:
             restore_slot = f"temp_{timer_id}"
             self.save_state_manager.save_current_state(restore_slot)
-        
+
         # Display the timed message
         success = self.vestaboard_client.write_message(message)
         if not success:
             self.logger.error("Failed to display timed message")
             return timer_id
-        
+
+        # Record when we wrote the timed message for rate limit tracking
+        write_time = time.time()
+
         # Schedule restoration
         def restore_previous():
             self.logger.info(f"Timer {timer_id} expired, restoring from slot {restore_slot}")
+
+            # For Cloud API, ensure we respect the rate limit before restoring
+            # Check if we need to wait for rate limit to clear
+            if hasattr(self.vestaboard_client, 'RATE_LIMIT_SECONDS'):
+                rate_limit = self.vestaboard_client.RATE_LIMIT_SECONDS
+                time_since_write = time.time() - write_time
+                remaining_wait = rate_limit - time_since_write
+
+                if remaining_wait > 0:
+                    self.logger.info(f"Waiting {remaining_wait:.1f}s for Cloud API rate limit before restore")
+                    time.sleep(remaining_wait + 0.5)  # Add 0.5s buffer
+
             self._restore_from_slot(restore_slot)
             # Clean up timer tracking
             if timer_id in self.active_timers:
                 del self.active_timers[timer_id]
-        
+
         timer = threading.Timer(duration_seconds, restore_previous)
         self.active_timers[timer_id] = timer
         timer.start()
-        
+
         self.logger.info(f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})")
         return timer_id
     

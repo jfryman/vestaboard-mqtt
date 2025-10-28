@@ -99,7 +99,7 @@ class SaveStateManager:
             layout = save_data["layout"]
             self.logger.debug(f"Layout type: {type(layout)}")
             self.logger.debug(f"Layout preview: {str(layout)[:100]}...")
-            
+
             # Ensure layout is a proper array, not a string
             if isinstance(layout, str):
                 self.logger.warning("Layout is a string, attempting to parse as JSON")
@@ -109,7 +109,13 @@ class SaveStateManager:
                 except json.JSONDecodeError as e:
                     self.logger.error(f"Failed to parse layout string: {e}")
                     return False
-            
+
+            # Handle Local API format with "message" wrapper (defensive fix for old saved states)
+            if isinstance(layout, dict) and "message" in layout:
+                self.logger.warning("Layout is wrapped in 'message' dict, extracting array")
+                layout = layout["message"]
+                self.logger.info("Successfully extracted layout from message wrapper")
+
             if not isinstance(layout, list):
                 self.logger.error(f"Layout is not a list, it's {type(layout)}")
                 return False
