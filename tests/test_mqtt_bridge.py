@@ -7,6 +7,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch, call
 import paho.mqtt.client as mqtt
 from src.mqtt_bridge import VestaboardMQTTBridge
+from src.config import MQTTConfig, TLSConfig, LWTConfig
 
 
 class TestMQTTBridgeInitialization:
@@ -18,10 +19,10 @@ class TestMQTTBridgeInitialization:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
-        assert bridge.topic_prefix == "vestaboard"
+        assert bridge.topic_prefix =="vestaboard"
         assert bridge.qos == 0
         assert bridge.vestaboard_client == mock_client
         assert len(bridge.active_timers) == 0
@@ -32,39 +33,39 @@ class TestMQTTBridgeInitialization:
         """Test bridge initializes with custom topic prefix."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "office-board"
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            topic_prefix="office-board"
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
-        assert bridge.topic_prefix == "office-board"
+        assert bridge.topic_prefix =="office-board"
 
     @patch('src.mqtt_bridge.create_vestaboard_client')
     def test_initialization_strips_trailing_slash(self, mock_create_client):
         """Test that topic prefix strips trailing slashes."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "vestaboard/"
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            topic_prefix="vestaboard/"
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
-        assert bridge.topic_prefix == "vestaboard"
+        assert bridge.topic_prefix =="vestaboard"
 
     @patch('src.mqtt_bridge.create_vestaboard_client')
     def test_initialization_with_custom_qos(self, mock_create_client):
         """Test bridge initializes with custom QoS level."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "qos": 2
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            qos= 2
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         assert bridge.qos == 2
@@ -77,12 +78,12 @@ class TestMQTTBridgeInitialization:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "username": "test_user",
-            "password": "test_pass"
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            username="test_user",
+            password="test_pass"
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Verify username_pw_set was called on the MQTT client
@@ -93,11 +94,11 @@ class TestMQTTBridgeInitialization:
         """Test bridge uses custom MQTT client ID."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "client_id": "custom-vestaboard-1"
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            client_id="custom-vestaboard-1"
+        )
 
         with patch('src.mqtt_bridge.mqtt.Client') as mock_mqtt_client:
             bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
@@ -108,11 +109,11 @@ class TestMQTTBridgeInitialization:
         """Test bridge uses persistent session when configured."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "clean_session": False
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            clean_session= False
+        )
 
         with patch('src.mqtt_bridge.mqtt.Client') as mock_mqtt_client:
             bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
@@ -123,7 +124,7 @@ class TestMQTTBridgeInitialization:
         """Test bridge passes max_queue_size to Vestaboard client."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(
             vestaboard_api_key="test_key",
             mqtt_config=mqtt_config,
@@ -136,22 +137,24 @@ class TestMQTTBridgeInitialization:
 class TestTLSConfiguration:
     """Test TLS/SSL configuration for MQTT connection."""
 
+    @patch('os.path.exists', return_value=True)
     @patch('src.mqtt_bridge.mqtt.Client')
     @patch('src.mqtt_bridge.create_vestaboard_client')
-    def test_tls_configuration_basic(self, mock_create_client, mock_mqtt_client):
+    def test_tls_configuration_basic(self, mock_create_client, mock_mqtt_client, mock_exists):
         """Test basic TLS configuration."""
         mock_create_client.return_value = Mock()
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 8883,
-            "tls": {
-                "enabled": True,
-                "ca_certs": "/path/to/ca.crt"
-            }
-        }
+        tls_config = TLSConfig(
+            enabled=True,
+            ca_certs="/path/to/ca.crt"
+        )
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=8883,
+            tls=tls_config
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -161,24 +164,26 @@ class TestTLSConfiguration:
         assert kwargs['cert_reqs'] == ssl.CERT_REQUIRED
         assert kwargs['tls_version'] == ssl.PROTOCOL_TLS
 
+    @patch('os.path.exists', return_value=True)
     @patch('src.mqtt_bridge.mqtt.Client')
     @patch('src.mqtt_bridge.create_vestaboard_client')
-    def test_tls_configuration_with_client_certs(self, mock_create_client, mock_mqtt_client):
+    def test_tls_configuration_with_client_certs(self, mock_create_client, mock_mqtt_client, mock_exists):
         """Test TLS configuration with client certificates."""
         mock_create_client.return_value = Mock()
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 8883,
-            "tls": {
-                "enabled": True,
-                "ca_certs": "/path/to/ca.crt",
-                "certfile": "/path/to/client.crt",
-                "keyfile": "/path/to/client.key"
-            }
-        }
+        tls_config = TLSConfig(
+            enabled=True,
+            ca_certs="/path/to/ca.crt",
+            certfile="/path/to/client.crt",
+            keyfile="/path/to/client.key"
+        )
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=8883,
+            tls=tls_config
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -186,23 +191,25 @@ class TestTLSConfiguration:
         assert kwargs['certfile'] == "/path/to/client.crt"
         assert kwargs['keyfile'] == "/path/to/client.key"
 
+    @patch('os.path.exists', return_value=True)
     @patch('src.mqtt_bridge.mqtt.Client')
     @patch('src.mqtt_bridge.create_vestaboard_client')
-    def test_tls_insecure_mode(self, mock_create_client, mock_mqtt_client):
+    def test_tls_insecure_mode(self, mock_create_client, mock_mqtt_client, mock_exists):
         """Test TLS insecure mode (skip certificate verification)."""
         mock_create_client.return_value = Mock()
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 8883,
-            "tls": {
-                "enabled": True,
-                "ca_certs": "/path/to/ca.crt",
-                "insecure": True
-            }
-        }
+        tls_config = TLSConfig(
+            enabled=True,
+            ca_certs="/path/to/ca.crt",
+            insecure=True
+        )
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=8883,
+            tls=tls_config
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -216,13 +223,11 @@ class TestTLSConfiguration:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "tls": {
-                "enabled": False
-            }
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=1883,
+            tls=None  # No TLS configuration
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -240,13 +245,12 @@ class TestLWTConfiguration:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "lwt": {
-                "topic": "vestaboard/status"
-            }
-        }
+        lwt_config = LWTConfig(topic="vestaboard/status")
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=1883,
+            lwt=lwt_config
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -265,16 +269,17 @@ class TestLWTConfiguration:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "lwt": {
-                "topic": "status/vestaboard",
-                "payload": "disconnected",
-                "qos": 2,
-                "retain": False
-            }
-        }
+        lwt_config = LWTConfig(
+            topic="status/vestaboard",
+            payload="disconnected",
+            qos=2,
+            retain=False
+        )
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port=1883,
+            lwt=lwt_config
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -293,10 +298,10 @@ class TestLWTConfiguration:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883
+        )
 
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
@@ -311,27 +316,27 @@ class TestTopicHandling:
         """Test _get_topic constructs correct paths with default prefix."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
-        assert bridge._get_topic("message") == "vestaboard/message"
-        assert bridge._get_topic("save/slot1") == "vestaboard/save/slot1"
-        assert bridge._get_topic("timed-message") == "vestaboard/timed-message"
+        assert bridge._get_topic("message") =="vestaboard/message"
+        assert bridge._get_topic("save/slot1") =="vestaboard/save/slot1"
+        assert bridge._get_topic("timed-message") =="vestaboard/timed-message"
 
     @patch('src.mqtt_bridge.create_vestaboard_client')
     def test_get_topic_with_custom_prefix(self, mock_create_client):
         """Test _get_topic constructs correct paths with custom prefix."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "office-board"
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            topic_prefix="office-board"
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
-        assert bridge._get_topic("message") == "office-board/message"
-        assert bridge._get_topic("save/slot1") == "office-board/save/slot1"
+        assert bridge._get_topic("message") =="office-board/message"
+        assert bridge._get_topic("save/slot1") =="office-board/save/slot1"
 
 
 class TestMQTTCallbacks:
@@ -342,7 +347,7 @@ class TestMQTTCallbacks:
         """Test successful MQTT connection callback."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         mock_client = Mock()
@@ -367,11 +372,11 @@ class TestMQTTCallbacks:
         """Test connection callback uses custom QoS."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {
-            "host": "localhost",
-            "port": 1883,
-            "qos": 1
-        }
+        mqtt_config = MQTTConfig(
+            host="localhost",
+            port= 1883,
+            qos= 1
+        )
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         mock_client = Mock()
@@ -386,7 +391,7 @@ class TestMQTTCallbacks:
         """Test MQTT disconnect callback."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Should not raise exception
@@ -403,7 +408,7 @@ class TestMessageHandling:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         bridge._handle_message("HELLO WORLD")
@@ -417,7 +422,7 @@ class TestMessageHandling:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         layout = [[1, 2, 3], [4, 5, 6]]
@@ -432,7 +437,7 @@ class TestMessageHandling:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         message_obj = {"text": "HELLO"}
@@ -447,11 +452,11 @@ class TestMessageHandling:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         mock_message = Mock()
-        mock_message.topic = "vestaboard/message"
+        mock_message.topic ="vestaboard/message"
         mock_message.payload = b"TEST"
 
         bridge._on_message(None, None, mock_message)
@@ -468,7 +473,7 @@ class TestSaveRestoreDelete:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         with patch.object(bridge.save_state_manager, 'save_current_state', return_value=True):
@@ -481,7 +486,7 @@ class TestSaveRestoreDelete:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         with patch.object(bridge, '_restore_from_slot'):
@@ -494,7 +499,7 @@ class TestSaveRestoreDelete:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         with patch.object(bridge.save_state_manager, 'delete_saved_state', return_value=True):
@@ -507,11 +512,11 @@ class TestSaveRestoreDelete:
         mock_client = Mock()
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         mock_message = Mock()
-        mock_message.topic = "vestaboard/save/slot1"
+        mock_message.topic ="vestaboard/save/slot1"
         mock_message.payload = b""
 
         with patch.object(bridge, '_handle_save'):
@@ -530,7 +535,7 @@ class TestTimedMessages:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         with patch.object(bridge.save_state_manager, 'save_current_state', return_value=True):
@@ -549,7 +554,7 @@ class TestTimedMessages:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         timer_id = bridge.schedule_timed_message("TEST", 30, restore_slot="custom_slot")
@@ -565,7 +570,7 @@ class TestTimedMessages:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Add a mock timer
@@ -583,7 +588,7 @@ class TestTimedMessages:
         """Test cancelling a non-existent timer."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         success = bridge.cancel_timed_message("nonexistent")
@@ -597,7 +602,7 @@ class TestTimedMessages:
         mock_client.write_message.return_value = True
         mock_create_client.return_value = mock_client
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         payload = json.dumps({
@@ -614,7 +619,7 @@ class TestTimedMessages:
         """Test handling cancel timer request."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         with patch.object(bridge, 'cancel_timed_message', return_value=True):
@@ -626,7 +631,7 @@ class TestTimedMessages:
         """Test handling list timers request."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Add some mock timers
@@ -660,7 +665,7 @@ class TestStopCleanup:
         """Test that stop() cancels all active timers."""
         mock_create_client.return_value = Mock()
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Add mock timers
@@ -685,7 +690,7 @@ class TestStopCleanup:
         mock_client_instance = Mock()
         mock_mqtt_client.return_value = mock_client_instance
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         bridge.stop()

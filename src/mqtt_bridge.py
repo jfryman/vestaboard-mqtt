@@ -4,8 +4,9 @@ import json
 import ssl
 import threading
 import time
-from typing import Dict, Optional, Union, List
+from typing import Optional, Union, List
 import paho.mqtt.client as mqtt
+from .config import MQTTConfig, TLSConfig, LWTConfig
 from .vestaboard_client import create_vestaboard_client
 from .save_state_manager import SaveStateManager
 from .logger import setup_logger
@@ -14,55 +15,32 @@ from .logger import setup_logger
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
 
-    def __init__(self, vestaboard_api_key: str = None, mqtt_config: Dict = None, max_queue_size: int = 10):
+    def __init__(self, vestaboard_api_key: Optional[str] = None, mqtt_config: Optional[MQTTConfig] = None, max_queue_size: int = 10):
         """Initialize the MQTT bridge.
 
         Args:
             vestaboard_api_key: Vestaboard API key (cloud or local), or None to auto-detect from env
-            mqtt_config: MQTT broker configuration including:
-                - host: MQTT broker hostname
-                - port: MQTT broker port
-                - username: MQTT username (optional)
-                - password: MQTT password (optional)
-                - topic_prefix: Topic prefix for all topics (default: "vestaboard")
-                - client_id: MQTT client ID (optional, auto-generated if not provided)
-                - clean_session: Clean session flag (default: True)
-                - keepalive: Keep-alive interval in seconds (default: 60)
-                - qos: Default QoS level (0, 1, or 2, default: 0)
-                - tls: TLS/SSL configuration dict (optional):
-                    - enabled: Enable TLS/SSL (default: False)
-                    - ca_certs: Path to CA certificate file
-                    - certfile: Path to client certificate file (optional)
-                    - keyfile: Path to client key file (optional)
-                    - cert_reqs: Certificate verification mode (default: ssl.CERT_REQUIRED)
-                    - tls_version: TLS version (default: ssl.PROTOCOL_TLS)
-                    - ciphers: Allowed ciphers (optional)
-                    - insecure: Skip certificate verification (default: False)
-                - lwt: Last Will and Testament configuration dict (optional):
-                    - topic: LWT topic
-                    - payload: LWT payload
-                    - qos: LWT QoS level (default: 0)
-                    - retain: LWT retain flag (default: True)
+            mqtt_config: MQTT broker configuration (MQTTConfig object)
             max_queue_size: Maximum number of messages to queue when rate limited
         """
         self.vestaboard_client = create_vestaboard_client(
             api_key=vestaboard_api_key,
             max_queue_size=max_queue_size
         )
-        self.mqtt_config = mqtt_config or {}
-        self.topic_prefix = self.mqtt_config.get("topic_prefix", "vestaboard").rstrip("/")
-        self.qos = self.mqtt_config.get("qos", 0)
+        self.mqtt_config = mqtt_config or MQTTConfig()
+        self.topic_prefix = self.mqtt_config.topic_prefix.rstrip("/")
+        self.qos = self.mqtt_config.qos
 
         # Initialize MQTT client with optional client ID and clean session
-        client_id = self.mqtt_config.get("client_id", "")
-        clean_session = self.mqtt_config.get("clean_session", True)
+        client_id = self.mqtt_config.client_id
+        clean_session = self.mqtt_config.clean_session
         self.mqtt_client = mqtt.Client(client_id=client_id, clean_session=clean_session)
 
         self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client, self.topic_prefix)
         self.logger = setup_logger(__name__)
 
         # Track timed messages
-        self.active_timers: Dict[str, threading.Timer] = {}
+        self.active_timers: dict[str, threading.Timer] = {}
 
         # Set up MQTT callbacks
         self.mqtt_client.on_connect = self._on_connect
@@ -70,48 +48,39 @@ class VestaboardMQTTBridge:
         self.mqtt_client.on_disconnect = self._on_disconnect
 
         # Set up authentication if provided
-        if self.mqtt_config.get("username") and self.mqtt_config.get("password"):
+        if self.mqtt_config.username and self.mqtt_config.password:
             self.mqtt_client.username_pw_set(
-                self.mqtt_config["username"],
-                self.mqtt_config["password"]
+                self.mqtt_config.username,
+                self.mqtt_config.password
             )
 
         # Set up TLS/SSL if enabled
-        tls_config = self.mqtt_config.get("tls", {})
-        if tls_config.get("enabled", False):
-            self._configure_tls(tls_config)
+        if self.mqtt_config.tls:
+            self._configure_tls(self.mqtt_config.tls)
 
         # Set up Last Will and Testament if configured
-        lwt_config = self.mqtt_config.get("lwt")
-        if lwt_config:
-            self._configure_lwt(lwt_config)
+        if self.mqtt_config.lwt:
+            self._configure_lwt(self.mqtt_config.lwt)
 
-    def _configure_tls(self, tls_config: Dict):
+    def _configure_tls(self, tls_config: TLSConfig):
         """Configure TLS/SSL for MQTT connection.
 
         Args:
-            tls_config: TLS configuration dictionary
+            tls_config: TLS configuration object
         """
-        ca_certs = tls_config.get("ca_certs")
-        certfile = tls_config.get("certfile")
-        keyfile = tls_config.get("keyfile")
-        cert_reqs = tls_config.get("cert_reqs", ssl.CERT_REQUIRED)
-        tls_version = tls_config.get("tls_version", ssl.PROTOCOL_TLS)
-        ciphers = tls_config.get("ciphers")
-
         try:
             self.mqtt_client.tls_set(
-                ca_certs=ca_certs,
-                certfile=certfile,
-                keyfile=keyfile,
-                cert_reqs=cert_reqs,
-                tls_version=tls_version,
-                ciphers=ciphers
+                ca_certs=tls_config.ca_certs,
+                certfile=tls_config.certfile,
+                keyfile=tls_config.keyfile,
+                cert_reqs=ssl.CERT_REQUIRED,
+                tls_version=ssl.PROTOCOL_TLS,
+                ciphers=None
             )
             self.logger.info("TLS/SSL configured successfully")
 
             # Disable certificate verification if insecure flag is set
-            if tls_config.get("insecure", False):
+            if tls_config.insecure:
                 self.mqtt_client.tls_insecure_set(True)
                 self.logger.warning("TLS certificate verification DISABLED - insecure mode active")
 
@@ -119,24 +88,20 @@ class VestaboardMQTTBridge:
             self.logger.error(f"Failed to configure TLS/SSL: {e}")
             raise
 
-    def _configure_lwt(self, lwt_config: Dict):
+    def _configure_lwt(self, lwt_config: LWTConfig):
         """Configure Last Will and Testament for MQTT connection.
 
         Args:
-            lwt_config: LWT configuration dictionary
+            lwt_config: LWT configuration object
         """
-        topic = lwt_config.get("topic")
-        if not topic:
-            self.logger.error("LWT topic not specified")
-            return
-
-        payload = lwt_config.get("payload", "offline")
-        qos = lwt_config.get("qos", 0)
-        retain = lwt_config.get("retain", True)
-
         try:
-            self.mqtt_client.will_set(topic, payload, qos, retain)
-            self.logger.info(f"Last Will and Testament configured: {topic}")
+            self.mqtt_client.will_set(
+                lwt_config.topic,
+                lwt_config.payload,
+                lwt_config.qos,
+                lwt_config.retain
+            )
+            self.logger.info(f"Last Will and Testament configured: {lwt_config.topic}")
         except Exception as e:
             self.logger.error(f"Failed to configure LWT: {e}")
             raise
@@ -449,13 +414,12 @@ class VestaboardMQTTBridge:
     def start(self):
         """Start the MQTT bridge."""
         try:
-            keepalive = self.mqtt_config.get("keepalive", 60)
-            self.logger.info(f"Connecting to MQTT broker at {self.mqtt_config['host']}:{self.mqtt_config['port']} "
+            self.logger.info(f"Connecting to MQTT broker at {self.mqtt_config.host}:{self.mqtt_config.port} "
                            f"with topic prefix '{self.topic_prefix}'")
             self.mqtt_client.connect(
-                self.mqtt_config["host"],
-                self.mqtt_config["port"],
-                keepalive
+                self.mqtt_config.host,
+                self.mqtt_config.port,
+                self.mqtt_config.keepalive
             )
             self.mqtt_client.loop_forever()
         except KeyboardInterrupt:

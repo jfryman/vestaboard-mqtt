@@ -7,6 +7,7 @@ from unittest.mock import Mock, MagicMock, patch, call
 from src.mqtt_bridge import VestaboardMQTTBridge
 from src.save_state_manager import SaveStateManager
 from src.http_api import create_app
+from src.config import MQTTConfig
 from fastapi.testclient import TestClient
 
 
@@ -22,12 +23,12 @@ class TestMQTTBridgeIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Simulate MQTT message
         mock_message = Mock()
-        mock_message.topic = "vestaboard/message"
+        mock_message.topic ="vestaboard/message"
         mock_message.payload = b"HELLO WORLD"
 
         bridge._on_message(None, None, mock_message)
@@ -50,7 +51,7 @@ class TestMQTTBridgeIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Mock MQTT publish
@@ -58,7 +59,7 @@ class TestMQTTBridgeIntegration:
 
         # Test save
         mock_save_message = Mock()
-        mock_save_message.topic = "vestaboard/save/test_slot"
+        mock_save_message.topic ="vestaboard/save/test_slot"
         mock_save_message.payload = b""
 
         bridge._on_message(None, None, mock_save_message)
@@ -86,7 +87,7 @@ class TestMQTTBridgeIntegration:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Mock MQTT publish
@@ -94,7 +95,7 @@ class TestMQTTBridgeIntegration:
 
         # Test timed message
         mock_timed_message = Mock()
-        mock_timed_message.topic = "vestaboard/timed-message"
+        mock_timed_message.topic ="vestaboard/timed-message"
         mock_timed_message.payload = json.dumps({
             "message": "ALERT",
             "duration_seconds": 30
@@ -188,7 +189,7 @@ class TestHTTPAPIIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Create API
@@ -214,7 +215,7 @@ class TestHTTPAPIIntegration:
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         app = create_app(bridge)
@@ -244,31 +245,31 @@ class TestMultiVestaboardScenario:
         # Configure mock to return different clients
         mock_create_client.side_effect = [mock_vestaboard1, mock_vestaboard2]
 
-        mqtt_config1 = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "office-board"
-        }
+        mqtt_config1 = MQTTConfig(
+            host="localhost",
+            port=1883,
+            topic_prefix="office-board"
+        )
         bridge1 = VestaboardMQTTBridge(vestaboard_api_key="key1", mqtt_config=mqtt_config1)
 
-        mqtt_config2 = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "lobby-board"
-        }
+        mqtt_config2 = MQTTConfig(
+            host="localhost",
+            port=1883,
+            topic_prefix="lobby-board"
+        )
         bridge2 = VestaboardMQTTBridge(vestaboard_api_key="key2", mqtt_config=mqtt_config2)
 
         # Verify different topic prefixes
-        assert bridge1.topic_prefix == "office-board"
-        assert bridge2.topic_prefix == "lobby-board"
+        assert bridge1.topic_prefix =="office-board"
+        assert bridge2.topic_prefix =="lobby-board"
 
         # Simulate messages to each bridge
         mock_message1 = Mock()
-        mock_message1.topic = "office-board/message"
+        mock_message1.topic ="office-board/message"
         mock_message1.payload = b"OFFICE MESSAGE"
 
         mock_message2 = Mock()
-        mock_message2.topic = "lobby-board/message"
+        mock_message2.topic ="lobby-board/message"
         mock_message2.payload = b"LOBBY MESSAGE"
 
         mock_vestaboard1.write_message.return_value = True
@@ -292,11 +293,11 @@ class TestErrorRecovery:
         mock_vestaboard.write_message.side_effect = [False, True]  # Fail then succeed
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         mock_message = Mock()
-        mock_message.topic = "vestaboard/message"
+        mock_message.topic ="vestaboard/message"
         mock_message.payload = b"TEST"
 
         # First attempt fails
@@ -314,12 +315,12 @@ class TestErrorRecovery:
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Test malformed timed message JSON
         mock_message = Mock()
-        mock_message.topic = "vestaboard/timed-message"
+        mock_message.topic ="vestaboard/timed-message"
         mock_message.payload = b"{invalid json [["
 
         # Should not raise exception
@@ -370,7 +371,7 @@ class TestCompleteWorkflow:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
         bridge.mqtt_client.publish = Mock(return_value=Mock(rc=0))
 
@@ -381,7 +382,7 @@ class TestCompleteWorkflow:
         }).encode()
 
         mock_message = Mock()
-        mock_message.topic = "vestaboard/timed-message"
+        mock_message.topic ="vestaboard/timed-message"
         mock_message.payload = timed_payload
 
         bridge._on_message(None, None, mock_message)
@@ -407,7 +408,7 @@ class TestCompleteWorkflow:
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Test sequence of different message types
@@ -431,9 +432,9 @@ class TestCompleteWorkflow:
 
         # Verify call arguments
         calls = mock_vestaboard.write_message.call_args_list
-        assert calls[0][0][0] == "HELLO"
+        assert calls[0][0][0] =="HELLO"
         assert calls[1][0][0] == [[1, 2], [3, 4]]
-        assert calls[2][0][0] == "WORLD"
+        assert calls[2][0][0] =="WORLD"
 
 
 @pytest.mark.integration
@@ -447,13 +448,13 @@ class TestPerformance:
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
+        mqtt_config = MQTTConfig(host="localhost", port= 1883)
         bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
 
         # Send 100 messages rapidly
         for i in range(100):
             mock_message = Mock()
-            mock_message.topic = "vestaboard/message"
+            mock_message.topic ="vestaboard/message"
             mock_message.payload = f"MESSAGE {i}".encode()
             bridge._on_message(None, None, mock_message)
 
