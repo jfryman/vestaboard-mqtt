@@ -5,6 +5,8 @@ A Python application that bridges MQTT messages to [Vestaboard](https://www.vest
 ## ✨ Features
 
 - **🔄 MQTT Integration**: Complete bridge between MQTT topics and Vestaboard displays
+- **📏 Multi-Board Support**: Works with Standard Vestaboard (6x22) and Vestaboard Note (3x15)
+- **🌐 Dual API Support**: Cloud Read/Write API or Local API
 - **💾 Save States**: Persistent state storage using MQTT retained messages with slot management
 - **⏰ Timed Messages**: Display messages for specified durations with automatic restoration
 - **🎯 Smart Restoration**: Automatic save/restore functionality with timer management
@@ -12,6 +14,7 @@ A Python application that bridges MQTT messages to [Vestaboard](https://www.vest
 - **🐳 Docker Ready**: Complete containerization with security and monitoring
 - **🔍 Debug Friendly**: Character-by-character layout previews and structured logging
 - **🛠️ Developer Tools**: Interactive testing suite and monitoring scripts
+- **✅ Fully Tested**: Comprehensive test suite with 81+ tests
 
 ## 🚀 Quick Start
 
@@ -83,24 +86,57 @@ python run.py
 
 ### Environment Variables
 
+#### Vestaboard Configuration
+
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VESTABOARD_API_KEY` | Your Vestaboard Read/Write API key | **Required** |
+| `VESTABOARD_API_KEY` | Vestaboard Cloud Read/Write API key | **Required*** |
+| `VESTABOARD_LOCAL_API_KEY` | Vestaboard Local API key (alternative to cloud) | - |
+| `USE_LOCAL_API` | Force Local API usage with cloud API key | `false` |
+| `VESTABOARD_LOCAL_HOST` | Local API hostname/IP | `vestaboard.local` |
+| `VESTABOARD_LOCAL_PORT` | Local API port | `7000` |
+| `VESTABOARD_BOARD_TYPE` | Board model: `standard` (6x22), `note` (3x15), or `rows,cols` | `standard` |
+
+\* Either `VESTABOARD_API_KEY` or `VESTABOARD_LOCAL_API_KEY` is required
+
+#### MQTT Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `MQTT_BROKER_HOST` | MQTT broker hostname | `localhost` |
 | `MQTT_BROKER_PORT` | MQTT broker port | `1883` |
 | `MQTT_USERNAME` | MQTT username (optional) | - |
 | `MQTT_PASSWORD` | MQTT password (optional) | - |
+
+#### Application Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `HTTP_PORT` | HTTP API port | `8000` |
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` |
 
-### Example .env File
+### Example .env Files
 
+#### Standard Vestaboard with Cloud API
 ```bash
 VESTABOARD_API_KEY=your_api_key_here
+VESTABOARD_BOARD_TYPE=standard  # 6 rows x 22 columns (default)
 MQTT_BROKER_HOST=homeassistant.local
 MQTT_BROKER_PORT=1883
 MQTT_USERNAME=mqtt_user
 MQTT_PASSWORD=mqtt_pass
+HTTP_PORT=8000
+LOG_LEVEL=INFO
+```
+
+#### Vestaboard Note with Local API
+```bash
+VESTABOARD_LOCAL_API_KEY=your_local_api_key_here
+VESTABOARD_BOARD_TYPE=note  # 3 rows x 15 columns
+VESTABOARD_LOCAL_HOST=192.168.1.100
+VESTABOARD_LOCAL_PORT=7000
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
 HTTP_PORT=8000
 LOG_LEVEL=INFO
 ```

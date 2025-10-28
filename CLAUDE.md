@@ -51,12 +51,18 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 
 2. **VestaboardClient & LocalVestaboardClient** (`src/vestaboard_client.py`)
    - **VestaboardClient**: Handles Cloud Read/Write API interactions
-   - **LocalVestaboardClient**: Handles Local API interactions (NEW)
+   - **LocalVestaboardClient**: Handles Local API interactions
    - **BaseVestaboardClient**: Abstract base class ensuring interface compatibility
+   - **RateLimitMixin**: Shared rate limiting logic (DRY principle)
    - **create_vestaboard_client()**: Factory function for automatic client selection
-   - Supports both text messages and 6x22 layout arrays
+   - **Multi-Board Support**: Configurable board dimensions
+     - BoardType.STANDARD (6x22) - Standard Vestaboard
+     - BoardType.NOTE (3x15) - Vestaboard Note
+     - Custom dimensions via tuple (rows, cols)
+   - Supports both text messages and layout arrays of any dimension
    - Character-by-character layout previews for debugging
    - Rate limiting and message queuing for both APIs
+   - Thread-safe operations with proper cleanup
 
 3. **SaveStateManager** (`src/save_state_manager.py`)
    - Manages save/restore via MQTT retained messages
@@ -77,6 +83,10 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 - `USE_LOCAL_API` - Set to "true" to use Local API with cloud API key (optional)
 - `VESTABOARD_LOCAL_HOST` - Local API hostname (default: vestaboard.local)
 - `VESTABOARD_LOCAL_PORT` - Local API port (default: 7000)
+- `VESTABOARD_BOARD_TYPE` - Board model configuration (default: standard)
+  - "standard" = Standard Vestaboard (6 rows x 22 columns)
+  - "note" = Vestaboard Note (3 rows x 15 columns)
+  - "rows,cols" = Custom dimensions (e.g., "3,15")
 
 ### MQTT Configuration
 - `MQTT_BROKER_HOST` - MQTT broker hostname (default: localhost)
@@ -89,6 +99,19 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 - `LOG_LEVEL` - Logging level (default: INFO)
 
 ## Testing Infrastructure
+
+### Unit & Integration Tests (Comprehensive Test Suite)
+- **Test Suite**: `pytest tests/` (81+ tests, all passing)
+- **Test Files**:
+  - `tests/test_board_types.py` - Board type constants, character maps, text_to_layout()
+  - `tests/test_vestaboard_client.py` - Client initialization, factory function
+  - `tests/test_env_board_type.py` - Environment variable parsing
+- **Coverage**: 50% on vestaboard_client.py (core functionality fully tested)
+- **Run Tests**: `pytest --cov=src --cov-report=html`
+- **Dependencies**: `pip install -r requirements-dev.txt`
+- **Documentation**: See `tests/README.md` for detailed testing guide
+
+### Manual Testing Tools
 - **Interactive Testing**: `python helpers/test_messages.py --interactive`
   - Commands: `msg`, `timed`, `save`, `restore`, `timers`, `preset1/2/3`
 - **Automated Testing**: `./helpers/quick_test.sh`
@@ -101,13 +124,27 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 - **Monitoring**: Built-in metrics and structured logging
 
 ## Recent Changes
+
+### Board Type Support & Code Quality (Latest Session)
+- **MULTI-BOARD SUPPORT ADDED**: Now supports Vestaboard Note (3x15) and Standard (6x22)
+- **BoardType Constants**: `BoardType.STANDARD` and `BoardType.NOTE` for easy configuration
+- **Environment Variable**: `VESTABOARD_BOARD_TYPE` for board model selection
+- **Code Refactoring**: Extracted RateLimitMixin to eliminate ~160 lines of duplication
+- **Utility Functions**: text_to_layout() and debug_layout_preview() now support any dimensions
+- **Comprehensive Testing**: Added 81+ unit and integration tests (pytest)
+  - test_board_types.py - Board type functionality
+  - test_vestaboard_client.py - Client initialization
+  - test_env_board_type.py - Environment variable parsing
+- **Documentation**: Updated README.md, CLAUDE.md, Helm chart, .env.example
+- **Helm Chart**: Added vestaboard.boardType configuration with conditional templating
+- **Future-Proof**: Ready for any future Vestaboard models
+
+### Local API Support (Previous)
 - **LOCAL API SUPPORT ADDED**: Complete integration with Vestaboard Local API
 - Added LocalVestaboardClient class with full feature parity to cloud client
 - Added automatic client selection via factory function
 - Environment variables added for Local API configuration
 - All existing functionality preserved and compatible with both APIs
-- Last significant commit: 6596f08 "Remove CLAUDE.md" (documentation cleanup)
-- CI/CD pipeline added recently
 - All timed message functionality is present and working
 
 ## Development Notes

@@ -45,6 +45,9 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            # Vestaboard board type configuration
+            - name: VESTABOARD_BOARD_TYPE
+              value: {{ .Values.vestaboard.boardType | quote }}
             {{- if .Values.vestaboard.useLocalApi }}
             # Local API mode environment variables
             - name: USE_LOCAL_API
