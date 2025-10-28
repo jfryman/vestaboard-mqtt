@@ -138,12 +138,66 @@ vestaboard:
     secretKeyPath: "vestaboard-mqtt/local-api"
     secretKeyProperty: "key"
 
+# MQTT configuration
+mqtt:
+  # Basic connection settings
+  broker:
+    host: "localhost"
+    port: "1883"
+
+  # Topic configuration (for multi-Vestaboard deployments)
+  # Set a unique prefix for each Vestaboard instance
+  # Example: "office-board", "lobby-board", "kitchen-vestaboard"
+  topicPrefix: "vestaboard"
+
+  # Connection settings
+  connection:
+    # MQTT client ID (leave empty for auto-generated)
+    clientId: ""
+    # Clean session flag - if true, broker discards previous session on reconnect
+    cleanSession: "true"
+    # Keep-alive interval in seconds
+    keepalive: "60"
+    # Default QoS level (0=at most once, 1=at least once, 2=exactly once)
+    qos: "0"
+
+  # TLS/SSL security configuration
+  tls:
+    # Enable TLS/SSL encryption
+    enabled: false
+    # Path to CA certificate file (required if TLS enabled)
+    # Mount certificates as volumes and reference the path here
+    caCerts: ""
+    # Path to client certificate file (optional, for mutual TLS)
+    certFile: ""
+    # Path to client key file (optional, for mutual TLS)
+    keyFile: ""
+    # Skip certificate verification (INSECURE - only for testing)
+    insecure: "false"
+
+  # Last Will and Testament configuration
+  lwt:
+    # Enable LWT by setting a topic
+    enabled: false
+    # Topic for LWT message (e.g., "vestaboard/status")
+    topic: ""
+    # Payload for LWT message
+    payload: "offline"
+    # QoS level for LWT message
+    qos: "0"
+    # Retain flag for LWT message
+    retain: "true"
+
+# Application configuration
+application:
+  httpPort: "8000"
+  logLevel: "INFO"
+
 # Regular environment variables for non-sensitive configuration
-env:
-  MQTT_BROKER_HOST: "localhost"
-  MQTT_BROKER_PORT: "1883"
-  HTTP_PORT: "8000"
-  LOG_LEVEL: "INFO"
+# Note: MQTT settings are now configured via the mqtt section above
+env: {}
+  # Add any additional custom environment variables here
+  # CUSTOM_VAR: "value"
 
 # External secrets for sensitive data only
 externalSecrets:

@@ -41,9 +41,61 @@ spec:
               containerPort: 8000
               protocol: TCP
           env:
-            {{- range $key, $value := .Values.env }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
+            # Application configuration
+            - name: HTTP_PORT
+              value: {{ .Values.application.httpPort | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.application.logLevel | quote }}
+            # MQTT basic connection
+            - name: MQTT_BROKER_HOST
+              value: {{ .Values.mqtt.broker.host | quote }}
+            - name: MQTT_BROKER_PORT
+              value: {{ .Values.mqtt.broker.port | quote }}
+            # MQTT topic configuration
+            - name: MQTT_TOPIC_PREFIX
+              value: {{ .Values.mqtt.topicPrefix | quote }}
+            # MQTT connection settings
+            {{- if .Values.mqtt.connection.clientId }}
+            - name: MQTT_CLIENT_ID
+              value: {{ .Values.mqtt.connection.clientId | quote }}
+            {{- end }}
+            - name: MQTT_CLEAN_SESSION
+              value: {{ .Values.mqtt.connection.cleanSession | quote }}
+            - name: MQTT_KEEPALIVE
+              value: {{ .Values.mqtt.connection.keepalive | quote }}
+            - name: MQTT_QOS
+              value: {{ .Values.mqtt.connection.qos | quote }}
+            # MQTT TLS/SSL configuration
+            {{- if .Values.mqtt.tls.enabled }}
+            - name: MQTT_TLS_ENABLED
+              value: "true"
+            {{- if .Values.mqtt.tls.caCerts }}
+            - name: MQTT_TLS_CA_CERTS
+              value: {{ .Values.mqtt.tls.caCerts | quote }}
+            {{- end }}
+            {{- if .Values.mqtt.tls.certFile }}
+            - name: MQTT_TLS_CERTFILE
+              value: {{ .Values.mqtt.tls.certFile | quote }}
+            {{- end }}
+            {{- if .Values.mqtt.tls.keyFile }}
+            - name: MQTT_TLS_KEYFILE
+              value: {{ .Values.mqtt.tls.keyFile | quote }}
+            {{- end }}
+            - name: MQTT_TLS_INSECURE
+              value: {{ .Values.mqtt.tls.insecure | quote }}
+            {{- end }}
+            # MQTT Last Will and Testament
+            {{- if .Values.mqtt.lwt.enabled }}
+            {{- if .Values.mqtt.lwt.topic }}
+            - name: MQTT_LWT_TOPIC
+              value: {{ .Values.mqtt.lwt.topic | quote }}
+            - name: MQTT_LWT_PAYLOAD
+              value: {{ .Values.mqtt.lwt.payload | quote }}
+            - name: MQTT_LWT_QOS
+              value: {{ .Values.mqtt.lwt.qos | quote }}
+            - name: MQTT_LWT_RETAIN
+              value: {{ .Values.mqtt.lwt.retain | quote }}
+            {{- end }}
             {{- end }}
             # Vestaboard board type configuration
             - name: VESTABOARD_BOARD_TYPE
@@ -60,6 +112,11 @@ spec:
             # Cloud API mode - ensure USE_LOCAL_API is false
             - name: USE_LOCAL_API
               value: "false"
+            {{- end }}
+            # Custom environment variables from .Values.env
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
             {{- end }}
           {{- if .Values.externalSecrets.enabled }}
           envFrom:

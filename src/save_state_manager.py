@@ -10,17 +10,18 @@ from .logger import setup_logger
 
 class SaveStateManager:
     """Manages save and restore functionality for Vestaboard states."""
-    
-    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: BaseVestaboardClient):
+
+    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: BaseVestaboardClient, topic_prefix: str = "vestaboard"):
         """Initialize the save state manager.
-        
+
         Args:
             mqtt_client: Connected MQTT client
             vestaboard_client: Vestaboard API client
+            topic_prefix: Base topic prefix (default: "vestaboard")
         """
         self.mqtt_client = mqtt_client
         self.vestaboard_client = vestaboard_client
-        self.save_topic_prefix = "vestaboard/states/"
+        self.save_topic_prefix = f"{topic_prefix.rstrip('/')}/states/"
         self.logger = setup_logger(__name__)
     
     def save_current_state(self, slot: str) -> bool:

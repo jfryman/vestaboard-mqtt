@@ -24,14 +24,18 @@ This project is a Python application that bridges MQTT messages to Vestaboard di
 ## Core Functionality (ALL IMPLEMENTED)
 
 ### MQTT Topics
-- `vestaboard/message` - Send text or layout array to display
-- `vestaboard/save/{slot}` - Save current display state to named slot
-- `vestaboard/restore/{slot}` - Restore display from named slot
-- `vestaboard/delete/{slot}` - Delete saved state from named slot
-- `vestaboard/timed-message` - Send timed message with auto-restore (JSON payload)
-- `vestaboard/cancel-timer/{timer_id}` - Cancel active timed message
-- `vestaboard/list-timers` - Query active timers
-- `vestaboard/states/{slot}` - Internal retained messages storing save states
+All topics use a configurable prefix (default: `vestaboard`). Examples below use the default prefix.
+
+- `{prefix}/message` - Send text or layout array to display
+- `{prefix}/save/{slot}` - Save current display state to named slot
+- `{prefix}/restore/{slot}` - Restore display from named slot
+- `{prefix}/delete/{slot}` - Delete saved state from named slot
+- `{prefix}/timed-message` - Send timed message with auto-restore (JSON payload)
+- `{prefix}/cancel-timer/{timer_id}` - Cancel active timed message
+- `{prefix}/list-timers` - Query active timers
+- `{prefix}/states/{slot}` - Internal retained messages storing save states
+
+**Multi-Vestaboard Support**: Configure unique topic prefixes per instance to control multiple Vestaboards independently (e.g., `office-board`, `lobby-board`, `kitchen-board`).
 
 ### Timed Message System (FULLY IMPLEMENTED)
 Located in `src/mqtt_bridge.py` lines 179-294:
@@ -89,10 +93,34 @@ Located in `src/mqtt_bridge.py` lines 179-294:
   - "rows,cols" = Custom dimensions (e.g., "3,15")
 
 ### MQTT Configuration
+
+#### Basic Connection
 - `MQTT_BROKER_HOST` - MQTT broker hostname (default: localhost)
 - `MQTT_BROKER_PORT` - MQTT broker port (default: 1883)
 - `MQTT_USERNAME` - MQTT username (optional)
 - `MQTT_PASSWORD` - MQTT password (optional)
+
+#### Topic & Connection Settings
+- `MQTT_TOPIC_PREFIX` - Topic prefix for all MQTT topics (default: vestaboard)
+  - Use unique prefixes per instance for multi-Vestaboard deployments
+  - Example: `office-board`, `lobby-display`, `kitchen-vestaboard`
+- `MQTT_CLIENT_ID` - MQTT client ID (optional, auto-generated if empty)
+- `MQTT_CLEAN_SESSION` - Clean session flag (default: true)
+- `MQTT_KEEPALIVE` - Keep-alive interval in seconds (default: 60)
+- `MQTT_QOS` - Default QoS level: 0, 1, or 2 (default: 0)
+
+#### TLS/SSL Security (Optional)
+- `MQTT_TLS_ENABLED` - Enable TLS/SSL encryption (default: false)
+- `MQTT_TLS_CA_CERTS` - Path to CA certificate file (required if TLS enabled)
+- `MQTT_TLS_CERTFILE` - Path to client certificate file (optional, for mutual TLS)
+- `MQTT_TLS_KEYFILE` - Path to client key file (optional, for mutual TLS)
+- `MQTT_TLS_INSECURE` - Skip certificate verification (default: false, INSECURE)
+
+#### Last Will and Testament (Optional)
+- `MQTT_LWT_TOPIC` - LWT topic (enables LWT if set)
+- `MQTT_LWT_PAYLOAD` - LWT payload (default: "offline")
+- `MQTT_LWT_QOS` - LWT QoS level (default: 0)
+- `MQTT_LWT_RETAIN` - LWT retain flag (default: true)
 
 ### Application Configuration
 - `HTTP_PORT` - HTTP API port (default: 8000)
@@ -125,7 +153,28 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 
 ## Recent Changes
 
-### Board Type Support & Code Quality (Latest Session)
+### Enhanced MQTT Interface & Security (Latest Session)
+- **MULTI-VESTABOARD SUPPORT**: Configurable topic prefixes enable control of multiple Vestaboards
+  - `MQTT_TOPIC_PREFIX` environment variable for unique topic namespacing
+  - Each instance can have its own topic prefix (e.g., `office-board`, `lobby-board`)
+  - SaveStateManager updated to support dynamic topic prefixes
+- **COMPREHENSIVE MQTT SECURITY**: Added full TLS/SSL and advanced connection options
+  - TLS/SSL encryption with CA certificate validation
+  - Mutual TLS support with client certificates
+  - Configurable certificate verification (with insecure mode for testing)
+  - Last Will and Testament (LWT) for connection status monitoring
+  - Clean session control for persistent/non-persistent sessions
+  - Configurable keep-alive intervals
+  - QoS level configuration (0, 1, or 2)
+  - Custom MQTT client ID support
+- **BACKWARD COMPATIBLE**: All existing configurations work without changes
+- **SECURITY BEST PRACTICES**:
+  - TLS certificate verification enabled by default
+  - Warning logs for insecure configurations
+  - Support for mutual TLS authentication
+  - LWT for detecting disconnected clients
+
+### Board Type Support & Code Quality (Previous Session)
 - **MULTI-BOARD SUPPORT ADDED**: Now supports Vestaboard Note (3x15) and Standard (6x22)
 - **BoardType Constants**: `BoardType.STANDARD` and `BoardType.NOTE` for easy configuration
 - **Environment Variable**: `VESTABOARD_BOARD_TYPE` for board model selection
@@ -159,6 +208,62 @@ Located in `src/mqtt_bridge.py` lines 179-294:
 - **Timed messages have NOT been removed** - they are fully implemented
 - All README.md documentation is accurate and current
 - The project is deployment-ready with complete Docker infrastructure
+
+## MQTT Configuration Examples
+
+### Multi-Vestaboard Deployment
+Run multiple instances with unique topic prefixes to control different boards:
+
+**Instance 1 (Office Board)**:
+```bash
+export VESTABOARD_API_KEY="office_api_key"
+export MQTT_TOPIC_PREFIX="office-board"
+export MQTT_CLIENT_ID="vestaboard-office"
+export HTTP_PORT="8001"
+python run.py
+```
+
+**Instance 2 (Lobby Board)**:
+```bash
+export VESTABOARD_API_KEY="lobby_api_key"
+export MQTT_TOPIC_PREFIX="lobby-board"
+export MQTT_CLIENT_ID="vestaboard-lobby"
+export HTTP_PORT="8002"
+python run.py
+```
+
+Now you can control each board independently:
+```bash
+# Update office board
+mosquitto_pub -t "office-board/message" -m "Office closed today"
+
+# Update lobby board
+mosquitto_pub -t "lobby-board/message" -m "Welcome visitors!"
+```
+
+### Secure MQTT with TLS/SSL
+```bash
+export MQTT_BROKER_HOST="secure-mqtt.example.com"
+export MQTT_BROKER_PORT="8883"
+export MQTT_USERNAME="vestaboard_user"
+export MQTT_PASSWORD="secure_password"
+export MQTT_TLS_ENABLED="true"
+export MQTT_TLS_CA_CERTS="/etc/ssl/certs/ca.crt"
+export MQTT_QOS="1"  # Ensure delivery with QoS 1
+export MQTT_LWT_TOPIC="vestaboard/status"
+export MQTT_LWT_PAYLOAD="offline"
+```
+
+### Mutual TLS Authentication
+```bash
+export MQTT_BROKER_HOST="mqtt.internal.example.com"
+export MQTT_BROKER_PORT="8884"
+export MQTT_TLS_ENABLED="true"
+export MQTT_TLS_CA_CERTS="/etc/ssl/certs/ca.crt"
+export MQTT_TLS_CERTFILE="/etc/ssl/certs/vestaboard-client.crt"
+export MQTT_TLS_KEYFILE="/etc/ssl/private/vestaboard-client.key"
+export MQTT_CLEAN_SESSION="false"  # Persistent session
+```
 
 ## Local API Configuration Examples
 
