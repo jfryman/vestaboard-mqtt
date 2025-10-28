@@ -195,11 +195,16 @@ Basic operational metrics for monitoring.
 ## Data Formats
 
 ### Layout Arrays
-Vestaboard uses 6x22 character code arrays (6 rows, 22 columns).
+Vestaboard displays use character code arrays with dimensions depending on the board model.
 
-**Structure:** `[[row1], [row2], [row3], [row4], [row5], [row6]]`  
-**Character Codes:** 0-69 (see Vestaboard API documentation)  
-**Example:**
+**Board Types:**
+- **Standard Vestaboard:** 6 rows × 22 columns (6x22)
+- **Vestaboard Note:** 3 rows × 15 columns (3x15)
+
+**Structure:** `[[row1], [row2], ...]` (rows vary by board type)
+**Character Codes:** 0-69 (see Vestaboard API documentation)
+
+**Example (Standard 6x22):**
 ```json
 [
   [8,5,12,12,15,0,23,15,18,12,4,0,0,0,0,0,0,0,0,0,0,0],
@@ -208,6 +213,15 @@ Vestaboard uses 6x22 character code arrays (6 rows, 22 columns).
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+]
+```
+
+**Example (Vestaboard Note 3x15):**
+```json
+[
+  [8,5,12,12,15,0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 ]
 ```
 
@@ -310,13 +324,26 @@ send_timed_alert(client, "Meeting starts in 10 minutes", 120)
 ## Configuration
 
 ### Environment Variables
-- `VESTABOARD_API_KEY`: Vestaboard Read/Write API key (required)
+
+**Vestaboard Configuration:**
+- `VESTABOARD_API_KEY`: Vestaboard Cloud Read/Write API key (required*)
+- `VESTABOARD_LOCAL_API_KEY`: Vestaboard Local API key (alternative to cloud)
+- `USE_LOCAL_API`: Force Local API usage with cloud key (default: false)
+- `VESTABOARD_LOCAL_HOST`: Local API hostname/IP (default: vestaboard.local)
+- `VESTABOARD_LOCAL_PORT`: Local API port (default: 7000)
+- `VESTABOARD_BOARD_TYPE`: Board model - "standard" (6x22), "note" (3x15), or "rows,cols" (default: standard)
+
+**MQTT Configuration:**
 - `MQTT_BROKER_HOST`: MQTT broker hostname (default: localhost)
 - `MQTT_BROKER_PORT`: MQTT broker port (default: 1883)
 - `MQTT_USERNAME`: MQTT authentication username (optional)
 - `MQTT_PASSWORD`: MQTT authentication password (optional)
+
+**Application Configuration:**
 - `HTTP_PORT`: HTTP API port (default: 8000)
 - `LOG_LEVEL`: Logging verbosity (default: INFO)
+
+\* Either `VESTABOARD_API_KEY` or `VESTABOARD_LOCAL_API_KEY` is required
 
 ### Docker Deployment
 ```yaml
@@ -364,18 +391,31 @@ services:
 
 ## Support & Testing
 
-Use the included test utilities for development and integration testing:
+### Unit & Integration Tests
+```bash
+# Run comprehensive test suite (81+ tests)
+pytest tests/
 
+# Run with coverage report
+pytest --cov=src --cov-report=html
+
+# Install test dependencies
+pip install -r requirements-dev.txt
+```
+
+### Manual Testing Tools
 ```bash
 # Interactive testing tool
 python3 helpers/test_messages.py --interactive
 
-# Automated test suite  
+# Automated test suite
 ./helpers/quick_test.sh
 
 # MQTT traffic monitoring
 ./helpers/monitor.sh
 ```
+
+See `tests/README.md` for detailed testing documentation.
 
 ---
 

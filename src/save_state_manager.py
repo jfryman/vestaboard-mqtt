@@ -4,23 +4,24 @@ import json
 import time
 from typing import Dict, List, Optional
 import paho.mqtt.client as mqtt
-from .vestaboard_client import VestaboardClient
+from .vestaboard_client import BaseVestaboardClient
 from .logger import setup_logger
 
 
 class SaveStateManager:
     """Manages save and restore functionality for Vestaboard states."""
-    
-    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: VestaboardClient):
+
+    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: BaseVestaboardClient, topic_prefix: str = "vestaboard"):
         """Initialize the save state manager.
-        
+
         Args:
             mqtt_client: Connected MQTT client
             vestaboard_client: Vestaboard API client
+            topic_prefix: Base topic prefix (default: "vestaboard")
         """
         self.mqtt_client = mqtt_client
         self.vestaboard_client = vestaboard_client
-        self.save_topic_prefix = "vestaboard/states/"
+        self.save_topic_prefix = f"{topic_prefix.rstrip('/')}/states/"
         self.logger = setup_logger(__name__)
     
     def save_current_state(self, slot: str) -> bool:
@@ -98,7 +99,7 @@ class SaveStateManager:
             layout = save_data["layout"]
             self.logger.debug(f"Layout type: {type(layout)}")
             self.logger.debug(f"Layout preview: {str(layout)[:100]}...")
-            
+
             # Ensure layout is a proper array, not a string
             if isinstance(layout, str):
                 self.logger.warning("Layout is a string, attempting to parse as JSON")
@@ -108,7 +109,13 @@ class SaveStateManager:
                 except json.JSONDecodeError as e:
                     self.logger.error(f"Failed to parse layout string: {e}")
                     return False
-            
+
+            # Handle Local API format with "message" wrapper (defensive fix for old saved states)
+            if isinstance(layout, dict) and "message" in layout:
+                self.logger.warning("Layout is wrapped in 'message' dict, extracting array")
+                layout = layout["message"]
+                self.logger.info("Successfully extracted layout from message wrapper")
+
             if not isinstance(layout, list):
                 self.logger.error(f"Layout is not a list, it's {type(layout)}")
                 return False

@@ -1,0 +1,307 @@
+# Vestaboard MQTT Helm Chart - Configuration Examples
+# Copy sections from these examples into your values.yaml as needed
+
+# ============================================================================
+# Example 1: Single Vestaboard with Basic MQTT (Default Configuration)
+# ============================================================================
+# mqtt:
+#   broker:
+#     host: "mqtt.home.local"
+#     port: "1883"
+#   topicPrefix: "vestaboard"
+#
+# externalSecrets:
+#   enabled: true
+#   mqttSecrets:
+#     - secretKey: MQTT_USERNAME
+#       remoteRef:
+#         key: vestaboard-mqtt/mqtt
+#         property: username
+#     - secretKey: MQTT_PASSWORD
+#       remoteRef:
+#         key: vestaboard-mqtt/mqtt
+#         property: password
+
+# ============================================================================
+# Example 2: Multi-Vestaboard Deployment (Office Board)
+# Deploy multiple instances with unique topic prefixes
+# ============================================================================
+# nameOverride: "vestaboard-office"
+# fullnameOverride: "vestaboard-office"
+#
+# mqtt:
+#   broker:
+#     host: "mqtt.office.local"
+#     port: "1883"
+#   topicPrefix: "office-board"  # Unique prefix for this board
+#   connection:
+#     clientId: "vestaboard-office"
+#
+# application:
+#   httpPort: "8001"  # Unique port for this instance
+#
+# service:
+#   port: 8001
+#
+# vestaboard:
+#   cloudApi:
+#     secretKeyPath: "vestaboard-mqtt/office-api"  # Unique secret path
+#     secretKeyProperty: "key"
+
+# ============================================================================
+# Example 3: Multi-Vestaboard Deployment (Lobby Board)
+# ============================================================================
+# nameOverride: "vestaboard-lobby"
+# fullnameOverride: "vestaboard-lobby"
+#
+# mqtt:
+#   broker:
+#     host: "mqtt.office.local"
+#     port: "1883"
+#   topicPrefix: "lobby-board"  # Different prefix from office
+#   connection:
+#     clientId: "vestaboard-lobby"
+#
+# application:
+#   httpPort: "8002"  # Different port from office
+#
+# service:
+#   port: 8002
+#
+# vestaboard:
+#   cloudApi:
+#     secretKeyPath: "vestaboard-mqtt/lobby-api"  # Different secret
+#     secretKeyProperty: "key"
+
+# ============================================================================
+# Example 4: Secure MQTT with TLS/SSL
+# ============================================================================
+# mqtt:
+#   broker:
+#     host: "secure-mqtt.example.com"
+#     port: "8883"
+#   topicPrefix: "vestaboard"
+#   connection:
+#     qos: "1"  # Ensure message delivery with QoS 1
+#   tls:
+#     enabled: true
+#     caCerts: "/etc/ssl/certs/mqtt-ca.crt"
+#     insecure: "false"
+#   lwt:
+#     enabled: true
+#     topic: "vestaboard/status"
+#     payload: "offline"
+#     qos: "1"
+#     retain: "true"
+#
+# # Mount TLS certificates as volumes
+# volumes:
+#   - name: mqtt-tls-certs
+#     secret:
+#       secretName: mqtt-tls-certificates
+#
+# volumeMounts:
+#   - name: mqtt-tls-certs
+#     mountPath: /etc/ssl/certs
+#     readOnly: true
+
+# ============================================================================
+# Example 5: Mutual TLS Authentication
+# ============================================================================
+# mqtt:
+#   broker:
+#     host: "mqtt.internal.example.com"
+#     port: "8884"
+#   topicPrefix: "vestaboard"
+#   connection:
+#     cleanSession: "false"  # Persistent session
+#     qos: "2"  # Exactly once delivery
+#   tls:
+#     enabled: true
+#     caCerts: "/etc/ssl/certs/mqtt-ca.crt"
+#     certFile: "/etc/ssl/certs/vestaboard-client.crt"
+#     keyFile: "/etc/ssl/private/vestaboard-client.key"
+#     insecure: "false"
+#   lwt:
+#     enabled: true
+#     topic: "vestaboard/status"
+#     payload: "offline"
+#     qos: "2"
+#     retain: "true"
+#
+# volumes:
+#   - name: mqtt-tls-ca
+#     secret:
+#       secretName: mqtt-ca-cert
+#   - name: mqtt-tls-client
+#     secret:
+#       secretName: mqtt-client-cert
+#
+# volumeMounts:
+#   - name: mqtt-tls-ca
+#     mountPath: /etc/ssl/certs
+#     readOnly: true
+#   - name: mqtt-tls-client
+#     mountPath: /etc/ssl/private
+#     readOnly: true
+
+# ============================================================================
+# Example 6: Vestaboard Note with Local API
+# ============================================================================
+# vestaboard:
+#   useLocalApi: true
+#   boardType: "note"  # 3 rows x 15 columns
+#   localApi:
+#     host: "192.168.1.100"
+#     port: "7000"
+#   localApiSecret:
+#     secretKeyPath: "vestaboard-mqtt/local-api"
+#     secretKeyProperty: "key"
+#
+# mqtt:
+#   broker:
+#     host: "mqtt.local"
+#     port: "1883"
+#   topicPrefix: "vestaboard-note"
+
+# ============================================================================
+# Example 7: High Availability Setup with Resource Limits
+# ============================================================================
+# replicaCount: 2
+#
+# resources:
+#   limits:
+#     cpu: 500m
+#     memory: 512Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi
+#
+# autoscaling:
+#   enabled: true
+#   minReplicas: 2
+#   maxReplicas: 5
+#   targetCPUUtilizationPercentage: 80
+#
+# mqtt:
+#   broker:
+#     host: "mqtt-ha.example.com"
+#     port: "1883"
+#   topicPrefix: "vestaboard"
+#   connection:
+#     cleanSession: "false"  # Maintain session across restarts
+#     qos: "1"
+#   lwt:
+#     enabled: true
+#     topic: "vestaboard/status"
+#     payload: "offline"
+#     qos: "1"
+#     retain: "true"
+
+# ============================================================================
+# Example 8: Development/Testing with Ingress
+# ============================================================================
+# mqtt:
+#   broker:
+#     host: "test-mqtt.local"
+#     port: "1883"
+#   topicPrefix: "vestaboard-dev"
+#   connection:
+#     clientId: "vestaboard-dev"
+#
+# application:
+#   logLevel: "DEBUG"  # Detailed logging for development
+#
+# ingress:
+#   enabled: true
+#   className: "nginx"
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-staging"
+#   hosts:
+#     - host: vestaboard-dev.example.com
+#       paths:
+#         - path: /
+#           pathType: Prefix
+#   tls:
+#     - secretName: vestaboard-dev-tls
+#       hosts:
+#         - vestaboard-dev.example.com
+
+# ============================================================================
+# Example 9: Production Setup with Monitoring and Security
+# ============================================================================
+# replicaCount: 2
+#
+# podAnnotations:
+#   prometheus.io/scrape: "true"
+#   prometheus.io/path: "/metrics"
+#   prometheus.io/port: "8000"
+#
+# securityContext:
+#   capabilities:
+#     drop:
+#     - ALL
+#   readOnlyRootFilesystem: true
+#   runAsNonRoot: true
+#   runAsUser: 1000
+#
+# podSecurityContext:
+#   fsGroup: 2000
+#   runAsNonRoot: true
+#   runAsUser: 1000
+#
+# resources:
+#   limits:
+#     cpu: 500m
+#     memory: 512Mi
+#   requests:
+#     cpu: 100m
+#     memory: 128Mi
+#
+# mqtt:
+#   broker:
+#     host: "mqtt.production.example.com"
+#     port: "8883"
+#   topicPrefix: "vestaboard"
+#   connection:
+#     qos: "1"
+#     cleanSession: "false"
+#   tls:
+#     enabled: true
+#     caCerts: "/etc/ssl/certs/mqtt-ca.crt"
+#   lwt:
+#     enabled: true
+#     topic: "vestaboard/status"
+#     payload: "offline"
+#     qos: "1"
+#     retain: "true"
+#
+# nodeSelector:
+#   node-role.kubernetes.io/worker: "true"
+#
+# affinity:
+#   podAntiAffinity:
+#     preferredDuringSchedulingIgnoredDuringExecution:
+#       - weight: 100
+#         podAffinityTerm:
+#           labelSelector:
+#             matchExpressions:
+#               - key: app.kubernetes.io/name
+#                 operator: In
+#                 values:
+#                   - vestaboard-mqtt
+#           topologyKey: kubernetes.io/hostname
+
+# ============================================================================
+# Example 10: Custom Environment Variables
+# ============================================================================
+# mqtt:
+#   broker:
+#     host: "mqtt.local"
+#     port: "1883"
+#   topicPrefix: "vestaboard"
+#
+# env:
+#   MAX_QUEUE_SIZE: "20"
+#   CUSTOM_SETTING: "value"
+#   FEATURE_FLAG_X: "true"

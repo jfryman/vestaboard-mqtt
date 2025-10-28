@@ -5,13 +5,18 @@ A Python application that bridges MQTT messages to [Vestaboard](https://www.vest
 ## ✨ Features
 
 - **🔄 MQTT Integration**: Complete bridge between MQTT topics and Vestaboard displays
+- **🔀 Multi-Vestaboard Support**: Control multiple boards with configurable topic prefixes
+- **🔒 Secure MQTT**: TLS/SSL encryption, mutual TLS, and comprehensive security options
+- **📏 Multi-Board Support**: Works with Standard Vestaboard (6x22) and Vestaboard Note (3x15)
+- **🌐 Dual API Support**: Cloud Read/Write API or Local API
 - **💾 Save States**: Persistent state storage using MQTT retained messages with slot management
 - **⏰ Timed Messages**: Display messages for specified durations with automatic restoration
 - **🎯 Smart Restoration**: Automatic save/restore functionality with timer management
-- **📊 Monitoring**: Built-in health checks and metrics for Kubernetes deployment
+- **📊 Monitoring**: Built-in health checks, metrics, and Last Will & Testament support
 - **🐳 Docker Ready**: Complete containerization with security and monitoring
 - **🔍 Debug Friendly**: Character-by-character layout previews and structured logging
 - **🛠️ Developer Tools**: Interactive testing suite and monitoring scripts
+- **✅ Fully Tested**: Comprehensive test suite with 81+ tests
 
 ## 🚀 Quick Start
 
@@ -65,42 +70,144 @@ python run.py
 
 ## 📡 MQTT Topics
 
+All topics use a configurable prefix (default: `vestaboard`). Set `MQTT_TOPIC_PREFIX` to customize.
+
 ### Core Operations
-- `vestaboard/message` - Send text or layout array to display
-- `vestaboard/save/{slot}` - Save current display state to named slot
-- `vestaboard/restore/{slot}` - Restore display from named slot
-- `vestaboard/delete/{slot}` - Delete saved state from named slot
+- `{prefix}/message` - Send text or layout array to display
+- `{prefix}/save/{slot}` - Save current display state to named slot
+- `{prefix}/restore/{slot}` - Restore display from named slot
+- `{prefix}/delete/{slot}` - Delete saved state from named slot
 
 ### Timed Messages
-- `vestaboard/timed-message` - Send timed message with auto-restore (JSON payload)
-- `vestaboard/cancel-timer/{timer_id}` - Cancel active timed message
-- `vestaboard/list-timers` - Query active timers
+- `{prefix}/timed-message` - Send timed message with auto-restore (JSON payload)
+- `{prefix}/cancel-timer/{timer_id}` - Cancel active timed message
+- `{prefix}/list-timers` - Query active timers
 
 ### Internal Storage
-- `vestaboard/states/{slot}` - Retained messages storing save states
+- `{prefix}/states/{slot}` - Retained messages storing save states
+
+### Multi-Vestaboard Example
+```bash
+# Control office board (prefix: office-board)
+mosquitto_pub -t "office-board/message" -m "Meeting at 3pm"
+
+# Control lobby board (prefix: lobby-board)
+mosquitto_pub -t "lobby-board/message" -m "Welcome!"
+```
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
+#### Vestaboard Configuration
+
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VESTABOARD_API_KEY` | Your Vestaboard Read/Write API key | **Required** |
+| `VESTABOARD_API_KEY` | Vestaboard Cloud Read/Write API key | **Required*** |
+| `VESTABOARD_LOCAL_API_KEY` | Vestaboard Local API key (alternative to cloud) | - |
+| `USE_LOCAL_API` | Force Local API usage with cloud API key | `false` |
+| `VESTABOARD_LOCAL_HOST` | Local API hostname/IP | `vestaboard.local` |
+| `VESTABOARD_LOCAL_PORT` | Local API port | `7000` |
+| `VESTABOARD_BOARD_TYPE` | Board model: `standard` (6x22), `note` (3x15), or `rows,cols` | `standard` |
+
+\* Either `VESTABOARD_API_KEY` or `VESTABOARD_LOCAL_API_KEY` is required
+
+#### MQTT Configuration
+
+##### Basic Connection
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `MQTT_BROKER_HOST` | MQTT broker hostname | `localhost` |
 | `MQTT_BROKER_PORT` | MQTT broker port | `1883` |
 | `MQTT_USERNAME` | MQTT username (optional) | - |
 | `MQTT_PASSWORD` | MQTT password (optional) | - |
+
+##### Topics & Connection
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MQTT_TOPIC_PREFIX` | Topic prefix for all MQTT topics | `vestaboard` |
+| `MQTT_CLIENT_ID` | MQTT client ID (empty for auto-generate) | - |
+| `MQTT_CLEAN_SESSION` | Clean session on reconnect | `true` |
+| `MQTT_KEEPALIVE` | Keep-alive interval (seconds) | `60` |
+| `MQTT_QOS` | Default QoS level (0, 1, or 2) | `0` |
+
+##### TLS/SSL Security (Optional)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MQTT_TLS_ENABLED` | Enable TLS/SSL encryption | `false` |
+| `MQTT_TLS_CA_CERTS` | Path to CA certificate file | - |
+| `MQTT_TLS_CERTFILE` | Path to client cert (mutual TLS) | - |
+| `MQTT_TLS_KEYFILE` | Path to client key (mutual TLS) | - |
+| `MQTT_TLS_INSECURE` | Skip cert verification (testing only) | `false` |
+
+##### Last Will & Testament (Optional)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MQTT_LWT_TOPIC` | LWT topic (enables if set) | - |
+| `MQTT_LWT_PAYLOAD` | LWT message payload | `offline` |
+| `MQTT_LWT_QOS` | LWT QoS level | `0` |
+| `MQTT_LWT_RETAIN` | Retain LWT message | `true` |
+
+#### Application Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `HTTP_PORT` | HTTP API port | `8000` |
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` |
 
-### Example .env File
+### Example .env Files
 
+#### Standard Vestaboard with Cloud API
 ```bash
 VESTABOARD_API_KEY=your_api_key_here
+VESTABOARD_BOARD_TYPE=standard  # 6 rows x 22 columns (default)
 MQTT_BROKER_HOST=homeassistant.local
 MQTT_BROKER_PORT=1883
 MQTT_USERNAME=mqtt_user
 MQTT_PASSWORD=mqtt_pass
+MQTT_TOPIC_PREFIX=vestaboard  # default prefix
+HTTP_PORT=8000
+LOG_LEVEL=INFO
+```
+
+#### Multi-Vestaboard Setup (Office Board)
+```bash
+VESTABOARD_API_KEY=office_api_key_here
+VESTABOARD_BOARD_TYPE=standard
+MQTT_BROKER_HOST=mqtt.local
+MQTT_BROKER_PORT=1883
+MQTT_USERNAME=mqtt_user
+MQTT_PASSWORD=mqtt_pass
+MQTT_TOPIC_PREFIX=office-board  # unique prefix for this board
+MQTT_CLIENT_ID=vestaboard-office
+HTTP_PORT=8001
+LOG_LEVEL=INFO
+```
+
+#### Secure MQTT with TLS/SSL
+```bash
+VESTABOARD_API_KEY=your_api_key_here
+MQTT_BROKER_HOST=secure-mqtt.example.com
+MQTT_BROKER_PORT=8883
+MQTT_USERNAME=mqtt_user
+MQTT_PASSWORD=mqtt_pass
+MQTT_TLS_ENABLED=true
+MQTT_TLS_CA_CERTS=/etc/ssl/certs/ca.crt
+MQTT_QOS=1  # ensure message delivery
+MQTT_LWT_TOPIC=vestaboard/status
+MQTT_LWT_PAYLOAD=offline
+HTTP_PORT=8000
+LOG_LEVEL=INFO
+```
+
+#### Vestaboard Note with Local API
+```bash
+VESTABOARD_LOCAL_API_KEY=your_local_api_key_here
+VESTABOARD_BOARD_TYPE=note  # 3 rows x 15 columns
+VESTABOARD_LOCAL_HOST=192.168.1.100
+VESTABOARD_LOCAL_PORT=7000
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
 HTTP_PORT=8000
 LOG_LEVEL=INFO
 ```

@@ -4,26 +4,34 @@
 import json
 import time
 import argparse
+import os
 import paho.mqtt.client as mqtt
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class VestaboardTester:
     """Helper class for testing Vestaboard MQTT functionality."""
     
-    def __init__(self, broker_host: str = "localhost", broker_port: int = 1883, 
-                 username: Optional[str] = None, password: Optional[str] = None):
+    def __init__(self, broker_host: str = "localhost", broker_port: int = 1883,
+                 username: Optional[str] = None, password: Optional[str] = None,
+                 topic_prefix: str = "vestaboard"):
         """Initialize the tester.
-        
+
         Args:
             broker_host: MQTT broker host
             broker_port: MQTT broker port
             username: MQTT username (optional)
             password: MQTT password (optional)
+            topic_prefix: MQTT topic prefix (default: vestaboard)
         """
         self.client = mqtt.Client()
         self.broker_host = broker_host
         self.broker_port = broker_port
+        self.topic_prefix = topic_prefix.rstrip("/")
         
         # Set up authentication if provided
         if username and password:
@@ -47,8 +55,8 @@ class VestaboardTester:
         if rc == 0:
             print("Successfully connected to MQTT broker")
             # Subscribe to response topics
-            client.subscribe("vestaboard/timers-response")
-            client.subscribe("vestaboard/timer-response")
+            client.subscribe(f"{self.topic_prefix}/timers-response")
+            client.subscribe(f"{self.topic_prefix}/timer-response")
         else:
             print(f"Failed to connect: {rc}")
     
@@ -66,18 +74,18 @@ class VestaboardTester:
     
     def send_message(self, message: str):
         """Send a regular message to Vestaboard.
-        
+
         Args:
             message: Text message to display
         """
-        self.client.publish("vestaboard/message", message)
+        self.client.publish(f"{self.topic_prefix}/message", message)
         print(f"📤 Sent message: '{message}'")
     
-    def send_timed_message(self, message: str, duration: int = 30, 
-                          restore_slot: Optional[str] = None, 
+    def send_timed_message(self, message: str, duration: int = 30,
+                          restore_slot: Optional[str] = None,
                           response_topic: Optional[str] = None):
         """Send a timed message to Vestaboard.
-        
+
         Args:
             message: Text message to display
             duration: Duration in seconds
@@ -88,62 +96,64 @@ class VestaboardTester:
             "message": message,
             "duration_seconds": duration,
         }
-        
+
         if restore_slot:
             payload["restore_slot"] = restore_slot
-        
+
         if response_topic:
             payload["response_topic"] = response_topic
-        
-        self.client.publish("vestaboard/timed-message", json.dumps(payload))
+
+        self.client.publish(f"{self.topic_prefix}/timed-message", json.dumps(payload))
         print(f"⏰ Sent timed message: '{message}' for {duration}s")
         if restore_slot:
             print(f"   Will restore from slot: {restore_slot}")
     
     def save_state(self, slot: str):
         """Save current Vestaboard state to a slot.
-        
+
         Args:
             slot: Slot name to save to
         """
-        self.client.publish(f"vestaboard/save/{slot}", "")
+        self.client.publish(f"{self.topic_prefix}/save/{slot}", "")
         print(f"💾 Saved current state to slot: {slot}")
     
     def restore_state(self, slot: str):
         """Restore Vestaboard state from a slot.
-        
+
         Args:
             slot: Slot name to restore from
         """
-        self.client.publish(f"vestaboard/restore/{slot}", "")
+        self.client.publish(f"{self.topic_prefix}/restore/{slot}", "")
         print(f"♻️ Restored state from slot: {slot}")
     
     def delete_state(self, slot: str):
         """Delete a saved state.
-        
+
         Args:
             slot: Slot name to delete
         """
-        self.client.publish(f"vestaboard/delete/{slot}", "")
+        self.client.publish(f"{self.topic_prefix}/delete/{slot}", "")
         print(f"🗑️ Deleted saved state from slot: {slot}")
     
-    def list_timers(self, response_topic: str = "vestaboard/timers-response"):
+    def list_timers(self, response_topic: Optional[str] = None):
         """List active timers.
-        
+
         Args:
-            response_topic: Topic to receive response on
+            response_topic: Topic to receive response on (defaults to {prefix}/timers-response)
         """
-        payload = {"response_topic": response_topic} if response_topic != "vestaboard/timers-response" else ""
-        self.client.publish("vestaboard/list-timers", json.dumps(payload) if payload else "")
+        if response_topic is None:
+            response_topic = f"{self.topic_prefix}/timers-response"
+        payload = {"response_topic": response_topic}
+        self.client.publish(f"{self.topic_prefix}/list-timers", json.dumps(payload))
         print(f"📋 Requested timer list (response on: {response_topic})")
     
     def cancel_timer(self, timer_id: str):
         """Cancel an active timer.
-        
+
         Args:
             timer_id: Timer ID to cancel
         """
-        self.client.publish(f"vestaboard/cancel-timer/{timer_id}", "")
+        self.client.publish(f"{self.topic_prefix}/cancel-timer/{timer_id}", "")
         print(f"❌ Cancelled timer: {timer_id}")
     
     def disconnect(self):
@@ -155,12 +165,25 @@ class VestaboardTester:
 
 def main():
     """Main function with CLI interface."""
+    # Get defaults from environment variables
+    default_host = os.getenv("MQTT_BROKER_HOST", "localhost")
+    default_port = int(os.getenv("MQTT_BROKER_PORT", "1883"))
+    default_username = os.getenv("MQTT_USERNAME")
+    default_password = os.getenv("MQTT_PASSWORD")
+    default_topic_prefix = os.getenv("MQTT_TOPIC_PREFIX", "vestaboard")
+
     parser = argparse.ArgumentParser(description="Vestaboard MQTT Bridge Tester")
-    parser.add_argument("--host", default="localhost", help="MQTT broker host")
-    parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
-    parser.add_argument("--username", help="MQTT username")
-    parser.add_argument("--password", help="MQTT password")
-    parser.add_argument("--interactive", "-i", action="store_true", 
+    parser.add_argument("--host", default=default_host,
+                       help=f"MQTT broker host (default: {default_host})")
+    parser.add_argument("--port", type=int, default=default_port,
+                       help=f"MQTT broker port (default: {default_port})")
+    parser.add_argument("--username", default=default_username,
+                       help="MQTT username")
+    parser.add_argument("--password", default=default_password,
+                       help="MQTT password")
+    parser.add_argument("--topic-prefix", default=default_topic_prefix,
+                       help=f"MQTT topic prefix (default: {default_topic_prefix})")
+    parser.add_argument("--interactive", "-i", action="store_true",
                        help="Interactive mode")
     
     # Command arguments
@@ -181,9 +204,10 @@ def main():
     # Create tester instance
     try:
         tester = VestaboardTester(
-            args.host, args.port, args.username, args.password
+            args.host, args.port, args.username, args.password, args.topic_prefix
         )
         time.sleep(1)  # Allow connection to establish
+        print(f"Using topic prefix: {args.topic_prefix}")
     except Exception as e:
         print(f"Failed to initialize tester: {e}")
         return 1

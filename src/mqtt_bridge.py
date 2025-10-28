@@ -1,64 +1,175 @@
 """MQTT bridge for Vestaboard with save states and timed messages."""
 
 import json
+import ssl
 import threading
 import time
 from typing import Dict, Optional, Union, List
 import paho.mqtt.client as mqtt
-from .vestaboard_client import VestaboardClient
+from .vestaboard_client import create_vestaboard_client
 from .save_state_manager import SaveStateManager
 from .logger import setup_logger
 
 
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
-    
-    def __init__(self, vestaboard_api_key: str, mqtt_config: Dict, max_queue_size: int = 10):
+
+    def __init__(self, vestaboard_api_key: str = None, mqtt_config: Dict = None, max_queue_size: int = 10):
         """Initialize the MQTT bridge.
-        
+
         Args:
-            vestaboard_api_key: Vestaboard Read/Write API key
-            mqtt_config: MQTT broker configuration
+            vestaboard_api_key: Vestaboard API key (cloud or local), or None to auto-detect from env
+            mqtt_config: MQTT broker configuration including:
+                - host: MQTT broker hostname
+                - port: MQTT broker port
+                - username: MQTT username (optional)
+                - password: MQTT password (optional)
+                - topic_prefix: Topic prefix for all topics (default: "vestaboard")
+                - client_id: MQTT client ID (optional, auto-generated if not provided)
+                - clean_session: Clean session flag (default: True)
+                - keepalive: Keep-alive interval in seconds (default: 60)
+                - qos: Default QoS level (0, 1, or 2, default: 0)
+                - tls: TLS/SSL configuration dict (optional):
+                    - enabled: Enable TLS/SSL (default: False)
+                    - ca_certs: Path to CA certificate file
+                    - certfile: Path to client certificate file (optional)
+                    - keyfile: Path to client key file (optional)
+                    - cert_reqs: Certificate verification mode (default: ssl.CERT_REQUIRED)
+                    - tls_version: TLS version (default: ssl.PROTOCOL_TLS)
+                    - ciphers: Allowed ciphers (optional)
+                    - insecure: Skip certificate verification (default: False)
+                - lwt: Last Will and Testament configuration dict (optional):
+                    - topic: LWT topic
+                    - payload: LWT payload
+                    - qos: LWT QoS level (default: 0)
+                    - retain: LWT retain flag (default: True)
             max_queue_size: Maximum number of messages to queue when rate limited
         """
-        self.vestaboard_client = VestaboardClient(vestaboard_api_key, max_queue_size)
-        self.mqtt_config = mqtt_config
-        self.mqtt_client = mqtt.Client()
-        self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client)
+        self.vestaboard_client = create_vestaboard_client(
+            api_key=vestaboard_api_key,
+            max_queue_size=max_queue_size
+        )
+        self.mqtt_config = mqtt_config or {}
+        self.topic_prefix = self.mqtt_config.get("topic_prefix", "vestaboard").rstrip("/")
+        self.qos = self.mqtt_config.get("qos", 0)
+
+        # Initialize MQTT client with optional client ID and clean session
+        client_id = self.mqtt_config.get("client_id", "")
+        clean_session = self.mqtt_config.get("clean_session", True)
+        self.mqtt_client = mqtt.Client(client_id=client_id, clean_session=clean_session)
+
+        self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client, self.topic_prefix)
         self.logger = setup_logger(__name__)
-        
+
         # Track timed messages
         self.active_timers: Dict[str, threading.Timer] = {}
-        
+
         # Set up MQTT callbacks
         self.mqtt_client.on_connect = self._on_connect
         self.mqtt_client.on_message = self._on_message
         self.mqtt_client.on_disconnect = self._on_disconnect
-        
+
         # Set up authentication if provided
-        if mqtt_config.get("username") and mqtt_config.get("password"):
+        if self.mqtt_config.get("username") and self.mqtt_config.get("password"):
             self.mqtt_client.username_pw_set(
-                mqtt_config["username"],
-                mqtt_config["password"]
+                self.mqtt_config["username"],
+                self.mqtt_config["password"]
             )
-    
+
+        # Set up TLS/SSL if enabled
+        tls_config = self.mqtt_config.get("tls", {})
+        if tls_config.get("enabled", False):
+            self._configure_tls(tls_config)
+
+        # Set up Last Will and Testament if configured
+        lwt_config = self.mqtt_config.get("lwt")
+        if lwt_config:
+            self._configure_lwt(lwt_config)
+
+    def _configure_tls(self, tls_config: Dict):
+        """Configure TLS/SSL for MQTT connection.
+
+        Args:
+            tls_config: TLS configuration dictionary
+        """
+        ca_certs = tls_config.get("ca_certs")
+        certfile = tls_config.get("certfile")
+        keyfile = tls_config.get("keyfile")
+        cert_reqs = tls_config.get("cert_reqs", ssl.CERT_REQUIRED)
+        tls_version = tls_config.get("tls_version", ssl.PROTOCOL_TLS)
+        ciphers = tls_config.get("ciphers")
+
+        try:
+            self.mqtt_client.tls_set(
+                ca_certs=ca_certs,
+                certfile=certfile,
+                keyfile=keyfile,
+                cert_reqs=cert_reqs,
+                tls_version=tls_version,
+                ciphers=ciphers
+            )
+            self.logger.info("TLS/SSL configured successfully")
+
+            # Disable certificate verification if insecure flag is set
+            if tls_config.get("insecure", False):
+                self.mqtt_client.tls_insecure_set(True)
+                self.logger.warning("TLS certificate verification DISABLED - insecure mode active")
+
+        except Exception as e:
+            self.logger.error(f"Failed to configure TLS/SSL: {e}")
+            raise
+
+    def _configure_lwt(self, lwt_config: Dict):
+        """Configure Last Will and Testament for MQTT connection.
+
+        Args:
+            lwt_config: LWT configuration dictionary
+        """
+        topic = lwt_config.get("topic")
+        if not topic:
+            self.logger.error("LWT topic not specified")
+            return
+
+        payload = lwt_config.get("payload", "offline")
+        qos = lwt_config.get("qos", 0)
+        retain = lwt_config.get("retain", True)
+
+        try:
+            self.mqtt_client.will_set(topic, payload, qos, retain)
+            self.logger.info(f"Last Will and Testament configured: {topic}")
+        except Exception as e:
+            self.logger.error(f"Failed to configure LWT: {e}")
+            raise
+
+    def _get_topic(self, suffix: str) -> str:
+        """Get full topic path with configured prefix.
+
+        Args:
+            suffix: Topic suffix (e.g., "message", "save/+")
+
+        Returns:
+            Full topic path with prefix
+        """
+        return f"{self.topic_prefix}/{suffix}"
+
     def _on_connect(self, client, userdata, flags, rc):
         """Callback for when MQTT client connects."""
         if rc == 0:
             self.logger.info("Connected to MQTT broker")
             # Subscribe to all relevant topics
-            topics = [
-                "vestaboard/message",
-                "vestaboard/save/+",
-                "vestaboard/restore/+",
-                "vestaboard/delete/+",
-                "vestaboard/timed-message",
-                "vestaboard/cancel-timer/+",
-                "vestaboard/list-timers"
+            topic_suffixes = [
+                "message",
+                "save/+",
+                "restore/+",
+                "delete/+",
+                "timed-message",
+                "cancel-timer/+",
+                "list-timers"
             ]
-            for topic in topics:
-                client.subscribe(topic)
-                self.logger.debug(f"Subscribed to {topic}")
+            for suffix in topic_suffixes:
+                topic = self._get_topic(suffix)
+                client.subscribe(topic, qos=self.qos)
+                self.logger.debug(f"Subscribed to {topic} with QoS {self.qos}")
         else:
             self.logger.error(f"Failed to connect to MQTT broker: {rc}")
     
@@ -70,27 +181,34 @@ class VestaboardMQTTBridge:
         """Handle incoming MQTT messages."""
         topic = message.topic
         payload = message.payload.decode('utf-8')
-        
+
         self.logger.debug(f"Received message on {topic}: {payload[:100]}...")
-        
+
         try:
-            if topic == "vestaboard/message":
+            # Strip the prefix to get the suffix
+            if not topic.startswith(self.topic_prefix + "/"):
+                self.logger.warning(f"Received message on unexpected topic: {topic}")
+                return
+
+            suffix = topic[len(self.topic_prefix) + 1:]
+
+            if suffix == "message":
                 self._handle_message(payload)
-            elif topic.startswith("vestaboard/save/"):
-                slot = topic.split("/")[-1]
+            elif suffix.startswith("save/"):
+                slot = suffix.split("/")[-1]
                 self._handle_save(slot)
-            elif topic.startswith("vestaboard/restore/"):
-                slot = topic.split("/")[-1]
+            elif suffix.startswith("restore/"):
+                slot = suffix.split("/")[-1]
                 self._handle_restore_request(slot)
-            elif topic.startswith("vestaboard/delete/"):
-                slot = topic.split("/")[-1]
+            elif suffix.startswith("delete/"):
+                slot = suffix.split("/")[-1]
                 self._handle_delete(slot)
-            elif topic == "vestaboard/timed-message":
+            elif suffix == "timed-message":
                 self._handle_timed_message(payload)
-            elif topic.startswith("vestaboard/cancel-timer/"):
-                timer_id = topic.split("/")[-1]
+            elif suffix.startswith("cancel-timer/"):
+                timer_id = suffix.split("/")[-1]
                 self._handle_cancel_timer(timer_id)
-            elif topic == "vestaboard/list-timers":
+            elif suffix == "list-timers":
                 self._handle_list_timers(payload)
         except Exception as e:
             self.logger.error(f"Error handling message on {topic}: {e}")
@@ -137,8 +255,8 @@ class VestaboardMQTTBridge:
     
     def _restore_from_slot(self, slot: str):
         """Internal method to restore from a slot (used by both manual and timed restores)."""
-        state_topic = f"vestaboard/states/{slot}"
-        
+        state_topic = self._get_topic(f"states/{slot}")
+
         def on_restore_message(client, userdata, message):
             if message.topic == state_topic:
                 try:
@@ -217,11 +335,12 @@ class VestaboardMQTTBridge:
         """Handle list active timers request via MQTT."""
         try:
             # Parse request to get optional response topic
-            response_topic = "vestaboard/timers-response"  # default response topic
-            
+            response_topic = self._get_topic("timers-response")  # default response topic
+
             if payload.strip():
                 try:
                     data = json.loads(payload)
+                    # Allow custom response topic override
                     response_topic = data.get("response_topic", response_topic)
                 except json.JSONDecodeError:
                     # If not valid JSON, treat as response topic string
@@ -254,43 +373,58 @@ class VestaboardMQTTBridge:
         except Exception as e:
             self.logger.error(f"Error handling list timers request: {e}")
     
-    def schedule_timed_message(self, message: str, duration_seconds: int, 
+    def schedule_timed_message(self, message: str, duration_seconds: int,
                              restore_slot: Optional[str] = None) -> str:
         """Schedule a timed message with optional auto-restore.
-        
+
         Args:
             message: Message to display
             duration_seconds: How long to display the message
             restore_slot: Optional slot to restore from after timer expires
-            
+
         Returns:
             Timer ID for cancellation
         """
         timer_id = f"timer_{int(time.time())}"
-        
+
         # Save current state if no restore slot specified
         if restore_slot is None:
             restore_slot = f"temp_{timer_id}"
             self.save_state_manager.save_current_state(restore_slot)
-        
+
         # Display the timed message
         success = self.vestaboard_client.write_message(message)
         if not success:
             self.logger.error("Failed to display timed message")
             return timer_id
-        
+
+        # Record when we wrote the timed message for rate limit tracking
+        write_time = time.time()
+
         # Schedule restoration
         def restore_previous():
             self.logger.info(f"Timer {timer_id} expired, restoring from slot {restore_slot}")
+
+            # For Cloud API, ensure we respect the rate limit before restoring
+            # Check if we need to wait for rate limit to clear
+            if hasattr(self.vestaboard_client, 'RATE_LIMIT_SECONDS'):
+                rate_limit = self.vestaboard_client.RATE_LIMIT_SECONDS
+                time_since_write = time.time() - write_time
+                remaining_wait = rate_limit - time_since_write
+
+                if remaining_wait > 0:
+                    self.logger.info(f"Waiting {remaining_wait:.1f}s for Cloud API rate limit before restore")
+                    time.sleep(remaining_wait + 0.5)  # Add 0.5s buffer
+
             self._restore_from_slot(restore_slot)
             # Clean up timer tracking
             if timer_id in self.active_timers:
                 del self.active_timers[timer_id]
-        
+
         timer = threading.Timer(duration_seconds, restore_previous)
         self.active_timers[timer_id] = timer
         timer.start()
-        
+
         self.logger.info(f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})")
         return timer_id
     
@@ -315,11 +449,13 @@ class VestaboardMQTTBridge:
     def start(self):
         """Start the MQTT bridge."""
         try:
-            self.logger.info(f"Connecting to MQTT broker at {self.mqtt_config['host']}:{self.mqtt_config['port']}")
+            keepalive = self.mqtt_config.get("keepalive", 60)
+            self.logger.info(f"Connecting to MQTT broker at {self.mqtt_config['host']}:{self.mqtt_config['port']} "
+                           f"with topic prefix '{self.topic_prefix}'")
             self.mqtt_client.connect(
                 self.mqtt_config["host"],
                 self.mqtt_config["port"],
-                60
+                keepalive
             )
             self.mqtt_client.loop_forever()
         except KeyboardInterrupt:
