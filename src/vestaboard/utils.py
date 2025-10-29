@@ -76,11 +76,10 @@ def text_to_layout(text: str, board_type: BoardType) -> List[List[int]]:
         >>> # Vestaboard Note
         >>> text_to_layout("HELLO", BoardType.NOTE)  # Returns 3x15 array
     """
-    # Create empty layout
     layout = [[0 for _ in range(board_type.cols)] for _ in range(board_type.rows)]
 
     # Simple centering on first row
-    text_upper = text.upper()[: board_type.cols]  # Truncate to fit width
+    text_upper = text.upper()[: board_type.cols]
     start_col = max(0, (board_type.cols - len(text_upper)) // 2)
 
     for i, char in enumerate(text_upper):

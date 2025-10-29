@@ -61,9 +61,7 @@ def create_vestaboard_client(
     """
     logger = logging.getLogger(__name__)
 
-    # If config is provided, extract all values from it
     if config is not None:
-        # Determine which API key to use based on config
         if config.use_local_api and config.local_api_key:
             api_key = config.local_api_key
         elif config.api_key:
@@ -73,20 +71,16 @@ def create_vestaboard_client(
         else:
             raise ValueError("No API key found in VestaboardConfig")
 
-        # Parse board type from config string
         board_type = BoardType.from_string(config.board_type)
 
-        # Get local API settings from config
         use_local_api = config.use_local_api or bool(config.local_api_key and not config.api_key)
         local_host = config.local_host
         local_port = config.local_port
         max_queue_size = config.max_queue_size
 
-    # Validate required parameters
     if not api_key:
         raise ValueError("api_key is required")
 
-    # Create appropriate client
     if use_local_api:
         logger.info(f"Creating Local API client for {local_host}:{local_port}")
         return LocalVestaboardClient(

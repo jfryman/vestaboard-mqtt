@@ -34,20 +34,16 @@ def configure_logging(config: "AppConfig") -> None:
         >>> logger = logging.getLogger(__name__)
         >>> logger.info("Application started")
     """
-    # Parse log level
     log_level = getattr(logging, config.log_level.upper(), logging.INFO)
 
-    # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
 
     # Remove any existing handlers to avoid duplicates
     root_logger.handlers.clear()
 
-    # Create and configure console handler
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(log_level)
     handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT))
 
-    # Attach handler to root logger
     root_logger.addHandler(handler)
