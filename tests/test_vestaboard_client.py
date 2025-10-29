@@ -34,12 +34,6 @@ class TestVestaboardClientInitialization:
         assert client.board_rows == 3
         assert client.board_cols == 15
 
-    def test_cloud_client_custom_board_type(self):
-        """Test Cloud client with custom board dimensions."""
-        client = VestaboardClient(api_key="test_key", board_type=(4, 20))
-        assert client.board_rows == 4
-        assert client.board_cols == 20
-
     def test_cloud_client_stores_api_key(self):
         """Test that client stores API key correctly."""
         api_key = "test_api_key_12345"
@@ -73,12 +67,6 @@ class TestLocalVestaboardClientInitialization:
         client = LocalVestaboardClient(api_key="test_key", board_type=BoardType.NOTE)
         assert client.board_rows == 3
         assert client.board_cols == 15
-
-    def test_local_client_custom_board_type(self):
-        """Test Local client with custom board dimensions."""
-        client = LocalVestaboardClient(api_key="test_key", board_type=(4, 20))
-        assert client.board_rows == 4
-        assert client.board_cols == 20
 
     def test_local_client_default_host_and_port(self):
         """Test Local client uses default host and port."""
@@ -147,26 +135,35 @@ class TestFactoryFunction:
         assert client.board_cols == 15
 
     def test_factory_raises_error_without_api_key(self):
-        """Test factory raises ValueError when no API key provided."""
-        # Clear environment variables
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="No API key provided"):
-                create_vestaboard_client()
+        """Test factory raises ValueError when api_key is not provided."""
+        with pytest.raises(ValueError, match="api_key is required"):
+            create_vestaboard_client()
 
-    def test_factory_uses_env_api_key(self):
-        """Test factory uses API key from environment."""
-        with patch.dict(os.environ, {"VESTABOARD_API_KEY": "env_api_key"}):
-            client = create_vestaboard_client()
-            assert client.api_key == "env_api_key"
+    def test_factory_with_config_object(self):
+        """Test factory uses VestaboardConfig when provided."""
+        from src.config import VestaboardConfig
 
-    def test_factory_prefers_local_api_key_env(self):
-        """Test factory prefers VESTABOARD_LOCAL_API_KEY over VESTABOARD_API_KEY."""
-        with patch.dict(os.environ, {
-            "VESTABOARD_API_KEY": "cloud_key",
-            "VESTABOARD_LOCAL_API_KEY": "local_key"
-        }):
-            client = create_vestaboard_client()
-            assert client.api_key == "local_key"
+        config = VestaboardConfig(
+            api_key="config_api_key",
+            board_type="standard"
+        )
+        client = create_vestaboard_client(config=config)
+        assert client.api_key == "config_api_key"
+        assert isinstance(client, VestaboardClient)
+
+    def test_factory_with_config_prefers_local_api_key(self):
+        """Test factory uses local_api_key from config when use_local_api is True."""
+        from src.config import VestaboardConfig
+
+        config = VestaboardConfig(
+            api_key="cloud_key",
+            local_api_key="local_key",
+            use_local_api=True,
+            board_type="standard"
+        )
+        client = create_vestaboard_client(config=config)
+        assert client.api_key == "local_key"
+        assert isinstance(client, LocalVestaboardClient)
 
     def test_factory_passes_max_queue_size(self):
         """Test factory passes max_queue_size parameter."""

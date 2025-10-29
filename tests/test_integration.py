@@ -8,6 +8,7 @@ from src.mqtt_bridge import VestaboardMQTTBridge
 from src.save_state_manager import SaveStateManager
 from src.http_api import create_app
 from src.config import MQTTConfig, AppConfig
+from tests.conftest import create_test_app_config, create_test_mqtt_config
 from fastapi.testclient import TestClient
 
 
@@ -23,12 +24,7 @@ class TestMQTTBridgeIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Simulate MQTT message
@@ -56,12 +52,7 @@ class TestMQTTBridgeIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Mock MQTT publish
@@ -97,12 +88,7 @@ class TestMQTTBridgeIntegration:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Mock MQTT publish
@@ -204,12 +190,7 @@ class TestHTTPAPIIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Create API
@@ -235,12 +216,7 @@ class TestHTTPAPIIntegration:
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         app = create_app(bridge)
@@ -270,27 +246,19 @@ class TestMultiVestaboardScenario:
         # Configure mock to return different clients
         mock_create_client.side_effect = [mock_vestaboard1, mock_vestaboard2]
 
-        config1 = AppConfig(
+        mqtt_config1 = create_test_mqtt_config(topic_prefix="office-board")
+        config1 = create_test_app_config(
             vestaboard_api_key="key1",
-            mqtt=MQTTConfig(
-                host="localhost",
-                port=1883,
-                topic_prefix="office-board"
-            ),
-            http_port=8000,
-            max_queue_size=10
+            mqtt_config=mqtt_config1,
+            http_port=8000
         )
         bridge1 = VestaboardMQTTBridge(config1)
 
-        config2 = AppConfig(
+        mqtt_config2 = create_test_mqtt_config(topic_prefix="lobby-board")
+        config2 = create_test_app_config(
             vestaboard_api_key="key2",
-            mqtt=MQTTConfig(
-                host="localhost",
-                port=1883,
-                topic_prefix="lobby-board"
-            ),
-            http_port=8001,
-            max_queue_size=10
+            mqtt_config=mqtt_config2,
+            http_port=8001
         )
         bridge2 = VestaboardMQTTBridge(config2)
 
@@ -328,12 +296,7 @@ class TestErrorRecovery:
         mock_vestaboard.write_message.side_effect = [False, True]  # Fail then succeed
         mock_create_client.return_value = mock_vestaboard
 
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         mock_message = Mock()
@@ -355,12 +318,7 @@ class TestErrorRecovery:
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Test malformed timed message JSON
@@ -416,12 +374,7 @@ class TestCompleteWorkflow:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
         bridge.mqtt_client.publish = Mock(return_value=Mock(rc=0))
 
@@ -458,12 +411,7 @@ class TestCompleteWorkflow:
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Test sequence of different message types
@@ -503,12 +451,7 @@ class TestPerformance:
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        config = AppConfig(
-            vestaboard_api_key="test_key",
-            mqtt=MQTTConfig(host="localhost", port=1883),
-            http_port=8000,
-            max_queue_size=10
-        )
+        config = create_test_app_config()
         bridge = VestaboardMQTTBridge(config)
 
         # Send 100 messages rapidly

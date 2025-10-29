@@ -1,15 +1,18 @@
 """Vestaboard API client for reading and writing messages."""
 
-import os
 import time
 import threading
 from collections import deque
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, TYPE_CHECKING
 from abc import ABC, abstractmethod
+from enum import Enum
 
 import requests
 
 from .logger import setup_logger
+
+if TYPE_CHECKING:
+    from .config import VestaboardConfig
 
 
 # Vestaboard character code mapping (shared across all clients)
@@ -43,17 +46,87 @@ TEXT_TO_CODE_MAP = {
     '⬜': 69, '⬛': 70, '■': 71  # white, black, filled
 }
 
-# Board dimensions for different Vestaboard models
-class BoardType:
-    """Vestaboard board type dimensions (rows, cols)."""
-    # Standard Vestaboard (6 rows x 22 columns)
-    STANDARD = (6, 22)
-    # Vestaboard Note (3 rows x 15 columns)
-    NOTE = (3, 15)
+
+class BoardType(Enum):
+    """Vestaboard board type with dimensions."""
+
+    STANDARD = ("standard", 6, 22)  # Standard Vestaboard (6 rows x 22 columns)
+    NOTE = ("note", 3, 15)           # Vestaboard Note (3 rows x 15 columns)
+
+    def __init__(self, name: str, rows: int, cols: int):
+        self._type_name = name
+        self._rows = rows
+        self._cols = cols
+
+    @property
+    def rows(self) -> int:
+        """Number of rows on this board."""
+        return self._rows
+
+    @property
+    def cols(self) -> int:
+        """Number of columns on this board."""
+        return self._cols
+
+    @property
+    def type_name(self) -> str:
+        """String name of this board type."""
+        return self._type_name
+
+    @classmethod
+    def from_string(cls, value: str) -> 'BoardType':
+        """Parse board type from string.
+
+        Args:
+            value: Board type string ('standard' or 'note', case-insensitive)
+
+        Returns:
+            BoardType enum member
+
+        Raises:
+            ValueError: If value is not a valid board type
+
+        Examples:
+            >>> BoardType.from_string("standard")
+            <BoardType.STANDARD: ('standard', 6, 22)>
+            >>> BoardType.from_string("NOTE")
+            <BoardType.NOTE: ('note', 3, 15)>
+        """
+        value_lower = value.lower().strip()
+
+        if value_lower in ("standard", ""):
+            return cls.STANDARD
+        elif value_lower == "note":
+            return cls.NOTE
+        else:
+            raise ValueError(f"Unknown board_type: '{value}'. Valid options: 'standard' or 'note'")
+
+    def __str__(self) -> str:
+        """String representation."""
+        return f"{self.type_name} ({self.rows}x{self.cols})"
+
+    def __repr__(self) -> str:
+        """Developer representation."""
+        return f"BoardType.{self.name}"
+
 
 # Constants
-PREVIEW_ROWS = 3
-IMMEDIATE_PROCESSING_DELAY = 0.1  # seconds
+DEFAULT_PREVIEW_ROWS = 3
+QUEUE_PROCESSING_DELAY = 0.1  # seconds between immediate queue processing attempts
+
+
+def _format_log_suffix(label: str) -> str:
+    """Format an optional log message suffix for API type labels.
+
+    Args:
+        label: API type label (e.g., "Local API")
+
+    Returns:
+        Formatted suffix string or empty string
+    """
+    return f" - {label}" if label else ""
+
+
 
 
 class BaseVestaboardClient(ABC):
@@ -97,16 +170,20 @@ class RateLimitMixin:
         self.processing_queue = False
         self.queue_timer: Optional[threading.Timer] = None
 
+    @property
+    def _api_label(self) -> str:
+        """Get the API type label for logging. Override in subclasses."""
+        return ""
+
     def _can_send_now(self) -> bool:
         """Check if we can send a message now based on rate limiting."""
         return (time.time() - self.last_send_time) >= self.rate_limit_seconds
 
-    def _queue_message(self, message: Union[str, List[List[int]]], api_type: str = "") -> bool:
+    def _queue_message(self, message: Union[str, List[List[int]]]) -> bool:
         """Add a message to the queue.
 
         Args:
             message: Message to queue
-            api_type: API type label for logging (e.g., "Local API")
 
         Returns:
             True if queued successfully, False if queue is full
@@ -115,50 +192,42 @@ class RateLimitMixin:
             try:
                 self.message_queue.append(message)
                 queue_len = len(self.message_queue)
-                log_suffix = f" - {api_type}" if api_type else ""
+                log_suffix = _format_log_suffix(self._api_label)
                 self.logger.info(f"Message queued due to rate limit (queue size: {queue_len}){log_suffix}")
 
                 if not self.processing_queue:
-                    self._schedule_queue_processing(api_type)
+                    self._schedule_queue_processing()
 
                 return True
             except Exception as e:
-                log_suffix = f" ({api_type})" if api_type else ""
+                log_suffix = _format_log_suffix(self._api_label)
                 self.logger.error(f"Failed to queue message{log_suffix}: {e}")
                 return False
 
-    def _schedule_queue_processing(self, api_type: str = ""):
-        """Schedule processing of the message queue.
-
-        Args:
-            api_type: API type label for logging
-        """
+    def _schedule_queue_processing(self):
+        """Schedule processing of the message queue."""
         with self.queue_lock:
             if self.queue_timer:
                 self.queue_timer.cancel()
 
             time_until_next_send = self.rate_limit_seconds - (time.time() - self.last_send_time)
             if time_until_next_send <= 0:
-                time_until_next_send = IMMEDIATE_PROCESSING_DELAY
+                time_until_next_send = QUEUE_PROCESSING_DELAY
 
             self.processing_queue = True
             self.queue_timer = threading.Timer(
                 time_until_next_send,
-                lambda: self._process_queue(api_type)
+                self._process_queue
             )
             self.queue_timer.start()
 
-            log_suffix = f" ({api_type})" if api_type else ""
+            log_suffix = _format_log_suffix(self._api_label)
             self.logger.debug(
                 f"Scheduled queue processing in {time_until_next_send:.1f} seconds{log_suffix}"
             )
 
-    def _process_queue(self, api_type: str = ""):
-        """Process messages from the queue.
-
-        Args:
-            api_type: API type label for logging
-        """
+    def _process_queue(self):
+        """Process messages from the queue."""
         with self.queue_lock:
             self.processing_queue = False
 
@@ -166,25 +235,21 @@ class RateLimitMixin:
                 return
 
             if not self._can_send_now():
-                self._schedule_queue_processing(api_type)
+                self._schedule_queue_processing()
                 return
 
             message = self.message_queue.popleft()
             queue_len = len(self.message_queue)
-            log_suffix = f" - {api_type}" if api_type else ""
+            log_suffix = _format_log_suffix(self._api_label)
             self.logger.info(f"Processing queued message (remaining: {queue_len}){log_suffix}")
 
             success = self._send_message_direct(message)
 
             if self.message_queue and success:
-                self._schedule_queue_processing(api_type)
+                self._schedule_queue_processing()
 
-    def _cleanup_rate_limiting(self, api_type: str = ""):
-        """Clean up rate limiting resources.
-
-        Args:
-            api_type: API type label for logging
-        """
+    def _cleanup_rate_limiting(self):
+        """Clean up rate limiting resources."""
         with self.queue_lock:
             if self.queue_timer:
                 self.queue_timer.cancel()
@@ -194,12 +259,16 @@ class RateLimitMixin:
             queue_size = len(self.message_queue)
 
             if queue_size > 0:
-                log_suffix = f" ({api_type})" if api_type else ""
+                log_suffix = _format_log_suffix(self._api_label)
                 self.logger.warning(f"Discarding {queue_size} queued messages{log_suffix}")
                 self.message_queue.clear()
 
 
-def debug_layout_preview(layout: List[List[int]], logger, max_preview_rows: int = PREVIEW_ROWS) -> None:
+def debug_layout_preview(
+    layout: List[List[int]],
+    logger,
+    max_preview_rows: int = DEFAULT_PREVIEW_ROWS
+) -> None:
     """Generate a readable preview of the layout array for debugging.
 
     Args:
@@ -235,7 +304,7 @@ def debug_layout_preview(layout: List[List[int]], logger, max_preview_rows: int 
             logger.debug("Unable to determine layout dimensions")
 
 
-def text_to_layout(text: str, rows: int, cols: int) -> List[List[int]]:
+def text_to_layout(text: str, board_type: BoardType) -> List[List[int]]:
     """Convert text string to layout array.
 
     This is a simplified conversion that centers text on the first row.
@@ -244,27 +313,26 @@ def text_to_layout(text: str, rows: int, cols: int) -> List[List[int]]:
 
     Args:
         text: Text string to convert
-        rows: Number of rows in the layout
-        cols: Number of columns in the layout
+        board_type: BoardType enum specifying board dimensions
 
     Returns:
-        Layout array of specified dimensions
+        Layout array matching board dimensions
 
     Examples:
         >>> # Standard Vestaboard
-        >>> text_to_layout("HELLO", *BoardType.STANDARD)  # Returns 6x22 array
+        >>> text_to_layout("HELLO", BoardType.STANDARD)  # Returns 6x22 array
         >>> # Vestaboard Note
-        >>> text_to_layout("HELLO", *BoardType.NOTE)  # Returns 3x15 array
+        >>> text_to_layout("HELLO", BoardType.NOTE)  # Returns 3x15 array
     """
     # Create empty layout
-    layout = [[0 for _ in range(cols)] for _ in range(rows)]
+    layout = [[0 for _ in range(board_type.cols)] for _ in range(board_type.rows)]
 
     # Simple centering on first row
-    text_upper = text.upper()[:cols]  # Truncate to fit width
-    start_col = max(0, (cols - len(text_upper)) // 2)
+    text_upper = text.upper()[:board_type.cols]  # Truncate to fit width
+    start_col = max(0, (board_type.cols - len(text_upper)) // 2)
 
     for i, char in enumerate(text_upper):
-        if start_col + i < cols:
+        if start_col + i < board_type.cols:
             layout[0][start_col + i] = TEXT_TO_CODE_MAP.get(char, 0)
 
     return layout
@@ -279,26 +347,41 @@ class VestaboardClient(BaseVestaboardClient, RateLimitMixin):
     def __init__(
         self,
         api_key: str,
-        board_type: tuple[int, int] = BoardType.STANDARD,
+        board_type: BoardType = BoardType.STANDARD,
         max_queue_size: int = 10
     ):
         """Initialize the Vestaboard Cloud API client.
 
         Args:
             api_key: The Read/Write API key from Vestaboard settings
-            board_type: Board dimensions as (rows, cols) tuple (default: BoardType.STANDARD)
+            board_type: BoardType enum (default: BoardType.STANDARD)
             max_queue_size: Maximum number of messages to queue when rate limited
         """
         RateLimitMixin.__init__(self, self.RATE_LIMIT_SECONDS, max_queue_size)
 
         self.api_key = api_key
-        self.board_rows, self.board_cols = board_type
+        self.board_type = board_type
         self.headers = {
             "X-Vestaboard-Read-Write-Key": api_key,
             "Content-Type": "application/json"
         }
         self.logger = setup_logger(__name__)
-        self.logger.info(f"Initialized Cloud API client for {self.board_rows}x{self.board_cols} board")
+        self.logger.info(f"Initialized Cloud API client for {board_type} board")
+
+    @property
+    def board_rows(self) -> int:
+        """Number of rows on the board (backward compatibility)."""
+        return self.board_type.rows
+
+    @property
+    def board_cols(self) -> int:
+        """Number of columns on the board (backward compatibility)."""
+        return self.board_type.cols
+
+    @property
+    def _api_label(self) -> str:
+        """API type label for logging."""
+        return ""  # Cloud API doesn't need a label
 
     def read_current_message(self) -> Optional[Dict]:
         """Read the current message from the Vestaboard.
@@ -360,7 +443,7 @@ class VestaboardClient(BaseVestaboardClient, RateLimitMixin):
                 self.logger.info(f"Writing text message to Vestaboard: '{message}'")
             else:
                 payload = message
-                self.logger.info(f"Writing layout array to Vestaboard ({self.board_rows}x{self.board_cols})")
+                self.logger.info(f"Writing layout array to Vestaboard ({self.board_type})")
                 debug_layout_preview(message, self.logger)
 
             response = requests.post(
@@ -384,16 +467,29 @@ class VestaboardClient(BaseVestaboardClient, RateLimitMixin):
             return True
 
         except requests.RequestException as e:
-            self.logger.error(f"Error writing message: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                if e.response.status_code == 429:
-                    self.logger.warning("Hit Vestaboard rate limit (429)")
-                try:
-                    error_detail = e.response.json()
-                    self.logger.error(f"API Error Details: {error_detail}")
-                except (ValueError, AttributeError):
-                    self.logger.error(f"HTTP Status: {e.response.status_code}")
-            return False
+            return self._handle_request_error(e)
+
+    def _handle_request_error(self, error: requests.RequestException) -> bool:
+        """Handle request errors with consistent logging.
+
+        Args:
+            error: The RequestException that occurred
+
+        Returns:
+            False (indicating failure)
+        """
+        self.logger.error(f"Error writing message: {error}")
+
+        if hasattr(error, 'response') and error.response is not None:
+            if error.response.status_code == 429:
+                self.logger.warning("Hit Vestaboard rate limit (429)")
+            try:
+                error_detail = error.response.json()
+                self.logger.error(f"API Error Details: {error_detail}")
+            except (ValueError, AttributeError):
+                self.logger.error(f"HTTP Status: {error.response.status_code}")
+
+        return False
 
     def cleanup(self):
         """Clean up any active timers and resources."""
@@ -417,7 +513,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
     def __init__(
         self,
         api_key: str,
-        board_type: tuple[int, int] = BoardType.STANDARD,
+        board_type: BoardType = BoardType.STANDARD,
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
         max_queue_size: int = 10
@@ -426,7 +522,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
 
         Args:
             api_key: The Local API key from enablement
-            board_type: Board dimensions as (rows, cols) tuple (default: BoardType.STANDARD)
+            board_type: BoardType enum (default: BoardType.STANDARD)
             host: Vestaboard device hostname or IP
             port: Local API port
             max_queue_size: Maximum number of messages to queue when rate limited
@@ -434,7 +530,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         RateLimitMixin.__init__(self, self.RATE_LIMIT_SECONDS, max_queue_size)
 
         self.api_key = api_key
-        self.board_rows, self.board_cols = board_type
+        self.board_type = board_type
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}/local-api/message"
@@ -443,7 +539,22 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             "Content-Type": "application/json"
         }
         self.logger = setup_logger(__name__)
-        self.logger.info(f"Initialized Local API client for {self.board_rows}x{self.board_cols} board at {host}:{port}")
+        self.logger.info(f"Initialized Local API client for {board_type} board at {host}:{port}")
+
+    @property
+    def board_rows(self) -> int:
+        """Number of rows on the board (backward compatibility)."""
+        return self.board_type.rows
+
+    @property
+    def board_cols(self) -> int:
+        """Number of columns on the board (backward compatibility)."""
+        return self.board_type.cols
+
+    @property
+    def _api_label(self) -> str:
+        """API type label for logging."""
+        return "Local API"
 
     def read_current_message(self) -> Optional[Dict]:
         """Read the current message from the Vestaboard via Local API.
@@ -488,7 +599,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         # Convert text messages to layout arrays for Local API
         if isinstance(message, str):
             try:
-                message = text_to_layout(message, self.board_rows, self.board_cols)
+                message = text_to_layout(message, self.board_type)
             except Exception as e:
                 self.logger.error(f"Failed to convert text to layout: {e}")
                 return False
@@ -496,7 +607,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         if self._can_send_now():
             return self._send_message_direct(message)
         else:
-            return self._queue_message(message, "Local API")
+            return self._queue_message(message)
 
     def get_current_layout(self) -> Optional[List[List[int]]]:
         """Get the current message layout array.
@@ -519,7 +630,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             True if successful, False otherwise
         """
         try:
-            self.logger.info(f"Writing layout array to Vestaboard (Local API - {self.board_rows}x{self.board_cols})")
+            self.logger.info(f"Writing layout array to Vestaboard (Local API - {self.board_type})")
             debug_layout_preview(layout, self.logger)
 
             response = requests.post(
@@ -540,20 +651,33 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             return True
 
         except requests.RequestException as e:
-            self.logger.error(f"Error writing message (Local API): {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                if e.response.status_code == 429:
-                    self.logger.warning("Hit Vestaboard rate limit (429) - Local API")
-                try:
-                    error_detail = e.response.text
-                    self.logger.error(f"Local API Error Details: {error_detail}")
-                except (ValueError, AttributeError):
-                    self.logger.error(f"HTTP Status: {e.response.status_code}")
-            return False
+            return self._handle_request_error(e)
+
+    def _handle_request_error(self, error: requests.RequestException) -> bool:
+        """Handle request errors with consistent logging.
+
+        Args:
+            error: The RequestException that occurred
+
+        Returns:
+            False (indicating failure)
+        """
+        self.logger.error(f"Error writing message (Local API): {error}")
+
+        if hasattr(error, 'response') and error.response is not None:
+            if error.response.status_code == 429:
+                self.logger.warning("Hit Vestaboard rate limit (429) - Local API")
+            try:
+                error_detail = error.response.text
+                self.logger.error(f"Local API Error Details: {error_detail}")
+            except (ValueError, AttributeError):
+                self.logger.error(f"HTTP Status: {error.response.status_code}")
+
+        return False
 
     def cleanup(self):
         """Clean up any active timers and resources."""
-        self._cleanup_rate_limiting("Local API")
+        self._cleanup_rate_limiting()
 
     def __del__(self):
         """Destructor to ensure cleanup."""
@@ -565,45 +689,38 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
 
 def create_vestaboard_client(
     api_key: Optional[str] = None,
-    board_type: Optional[tuple[int, int]] = None,
-    use_local_api: Optional[bool] = None,
-    local_host: Optional[str] = None,
-    local_port: Optional[int] = None,
-    max_queue_size: int = 10
+    board_type: BoardType = BoardType.STANDARD,
+    use_local_api: bool = False,
+    local_host: str = "vestaboard.local",
+    local_port: int = 7000,
+    max_queue_size: int = 10,
+    config: Optional['VestaboardConfig'] = None
 ) -> BaseVestaboardClient:
     """Factory function to create appropriate Vestaboard client.
 
-    This function auto-detects the API type from environment variables if not
-    explicitly specified. Priority order for API key detection:
-    1. api_key parameter
-    2. VESTABOARD_LOCAL_API_KEY environment variable
-    3. VESTABOARD_API_KEY environment variable
-
-    Board type can be specified via VESTABOARD_BOARD_TYPE environment variable:
-    - "standard" or "STANDARD" -> BoardType.STANDARD (6x22)
-    - "note" or "NOTE" -> BoardType.NOTE (3x15)
-    - Or custom dimensions as "rows,cols" (e.g., "3,15")
+    All configuration is explicit - no environment variable reading.
+    For environment-based configuration, use AppConfig.from_env() and pass
+    config.vestaboard to this function.
 
     Args:
-        api_key: API key (cloud or local). If None, read from environment
-        board_type: Board dimensions as (rows, cols) tuple. If None, reads from
-                   VESTABOARD_BOARD_TYPE env var or defaults to BoardType.STANDARD
-        use_local_api: If True, use Local API; if False, use Cloud API;
-                      if None, auto-detect from environment
-        local_host: Hostname for Local API (default from env or vestaboard.local)
-        local_port: Port for Local API (default from env or 7000)
-        max_queue_size: Maximum queue size for rate limiting
+        api_key: API key (cloud or local), required unless config is provided
+        board_type: BoardType enum (default: BoardType.STANDARD)
+        use_local_api: If True, use Local API; if False, use Cloud API
+        local_host: Hostname for Local API (default: vestaboard.local)
+        local_port: Port for Local API (default: 7000)
+        max_queue_size: Maximum queue size for rate limiting (default: 10)
+        config: VestaboardConfig object (overrides other parameters if provided)
 
     Returns:
         VestaboardClient or LocalVestaboardClient instance
 
     Raises:
-        ValueError: If no API key is provided or found in environment, or if
-                   board_type environment variable has invalid format
+        ValueError: If required parameters are missing
 
     Examples:
         >>> # Standard Vestaboard with Cloud API
-        >>> client = create_vestaboard_client(api_key="...", board_type=BoardType.STANDARD)
+        >>> client = create_vestaboard_client(api_key="...")
+
         >>> # Vestaboard Note with Local API
         >>> client = create_vestaboard_client(
         ...     api_key="...",
@@ -611,55 +728,38 @@ def create_vestaboard_client(
         ...     use_local_api=True,
         ...     local_host="192.168.1.100"
         ... )
-        >>> # Using environment variables
-        >>> # export VESTABOARD_BOARD_TYPE=note
-        >>> client = create_vestaboard_client()  # Auto-detects as 3x15
+
+        >>> # Using config object from environment
+        >>> from config import AppConfig
+        >>> app_config = AppConfig.from_env()
+        >>> client = create_vestaboard_client(config=app_config.vestaboard)
     """
     logger = setup_logger(__name__)
 
-    # Auto-detect API key from environment if not provided
-    if api_key is None:
-        api_key = os.getenv("VESTABOARD_LOCAL_API_KEY") or os.getenv("VESTABOARD_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "No API key provided. Set VESTABOARD_API_KEY or "
-                "VESTABOARD_LOCAL_API_KEY environment variable, or pass api_key parameter"
-            )
-
-    # Auto-detect board type from environment if not provided
-    if board_type is None:
-        board_type_env = os.getenv("VESTABOARD_BOARD_TYPE", "standard").lower()
-        if board_type_env in ("standard", ""):
-            board_type = BoardType.STANDARD
-        elif board_type_env == "note":
-            board_type = BoardType.NOTE
-        elif "," in board_type_env:
-            # Custom dimensions as "rows,cols"
-            try:
-                rows, cols = board_type_env.split(",")
-                board_type = (int(rows.strip()), int(cols.strip()))
-            except (ValueError, AttributeError) as e:
-                raise ValueError(
-                    f"Invalid VESTABOARD_BOARD_TYPE format: '{board_type_env}'. "
-                    f"Use 'standard', 'note', or 'rows,cols' (e.g., '3,15')"
-                ) from e
+    # If config is provided, extract all values from it
+    if config is not None:
+        # Determine which API key to use based on config
+        if config.use_local_api and config.local_api_key:
+            api_key = config.local_api_key
+        elif config.api_key:
+            api_key = config.api_key
+        elif config.local_api_key:
+            api_key = config.local_api_key
         else:
-            raise ValueError(
-                f"Unknown VESTABOARD_BOARD_TYPE: '{board_type_env}'. "
-                f"Use 'standard', 'note', or 'rows,cols' (e.g., '3,15')"
-            )
+            raise ValueError("No API key found in VestaboardConfig")
 
-    # Auto-detect API type if not specified
-    if use_local_api is None:
-        use_local_api = bool(os.getenv("VESTABOARD_LOCAL_API_KEY")) or \
-                       os.getenv("USE_LOCAL_API", "").lower() in ("true", "1", "yes")
+        # Parse board type from config string
+        board_type = BoardType.from_string(config.board_type)
 
-    # Get Local API configuration from environment
-    if local_host is None:
-        local_host = os.getenv("VESTABOARD_LOCAL_HOST", LocalVestaboardClient.DEFAULT_HOST)
+        # Get local API settings from config
+        use_local_api = config.use_local_api or bool(config.local_api_key and not config.api_key)
+        local_host = config.local_host
+        local_port = config.local_port
+        max_queue_size = config.max_queue_size
 
-    if local_port is None:
-        local_port = int(os.getenv("VESTABOARD_LOCAL_PORT", str(LocalVestaboardClient.DEFAULT_PORT)))
+    # Validate required parameters
+    if not api_key:
+        raise ValueError("api_key is required")
 
     # Create appropriate client
     if use_local_api:

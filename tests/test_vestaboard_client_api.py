@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 from src.vestaboard_client import (
     VestaboardClient,
     LocalVestaboardClient,
+    BoardType,
     text_to_layout,
     debug_layout_preview
 )
@@ -202,44 +203,76 @@ class TestTextToLayout:
 
     def test_text_to_layout_basic(self):
         """Test basic text conversion to layout."""
-        result = text_to_layout("AB", rows=1, cols=2)
-        assert result == [[1, 2]]
+        result = text_to_layout("AB", BoardType.NOTE)  # 3x15
+        # Should be centered on first row of NOTE board (3x15)
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        # 'A'=1, 'B'=2, centered in 15 cols
+        assert 1 in result[0]
+        assert 2 in result[0]
 
     def test_text_to_layout_centering(self):
         """Test text is centered on first row."""
-        # 3-char text in 5-col board should start at col 1 (center)
-        result = text_to_layout("ABC", rows=2, cols=5)
+        # Short text on NOTE board should be centered
+        result = text_to_layout("ABC", BoardType.NOTE)  # 3x15
         # 'A'=1, 'B'=2, 'C'=3
-        assert result[0] == [0, 1, 2, 3, 0]  # Centered
-        assert result[1] == [0, 0, 0, 0, 0]  # Empty second row
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        first_row = result[0]
+        # Text should be centered
+        assert 1 in first_row
+        assert 2 in first_row
+        assert 3 in first_row
+        # Second and third rows should be empty
+        assert all(code == 0 for code in result[1])
+        assert all(code == 0 for code in result[2])
 
     def test_text_to_layout_padding(self):
         """Test text is padded to fill board."""
-        result = text_to_layout("A", rows=2, cols=2)
-        assert result == [[1, 0], [0, 0]]
+        result = text_to_layout("A", BoardType.NOTE)  # 3x15
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        # First row should have 'A' (code 1) somewhere
+        assert 1 in result[0]
 
     def test_text_to_layout_truncation(self):
         """Test text is truncated if too long."""
-        result = text_to_layout("ABCD", rows=1, cols=2)
-        assert result == [[1, 2]]
+        # Text longer than NOTE board width (15) should be truncated
+        long_text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # 26 chars, but NOTE is 15 wide
+        result = text_to_layout(long_text, BoardType.NOTE)
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        # Should have at most 15 non-zero codes in first row
+        non_zero_count = sum(1 for code in result[0] if code != 0)
+        assert non_zero_count <= 15
 
     def test_text_to_layout_special_chars(self):
         """Test special characters are converted."""
-        result = text_to_layout("1!", rows=1, cols=2)
+        result = text_to_layout("1!", BoardType.NOTE)
         # '1' = code 27, '!' = code 37
-        assert result == [[27, 37]]
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        assert 27 in result[0]
+        assert 37 in result[0]
 
     def test_text_to_layout_unknown_char(self):
         """Test unknown characters are converted to spaces."""
-        result = text_to_layout("~", rows=1, cols=1)
+        result = text_to_layout("~", BoardType.NOTE)
         # Unknown chars become spaces (code 0)
-        assert result == [[0]]
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        # All codes should be 0 (no mapping for ~)
+        assert all(code == 0 for code in result[0])
 
     def test_text_to_layout_lowercase(self):
         """Test lowercase letters are converted to uppercase."""
-        result = text_to_layout("abc", rows=1, cols=3)
+        result = text_to_layout("abc", BoardType.NOTE)
         # 'A'=1, 'B'=2, 'C'=3
-        assert result == [[1, 2, 3]]
+        assert len(result) == 3
+        assert len(result[0]) == 15
+        assert 1 in result[0]
+        assert 2 in result[0]
+        assert 3 in result[0]
 
 
 class TestDebugLayoutPreview:

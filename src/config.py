@@ -63,13 +63,50 @@ class MQTTConfig(BaseModel):
     lwt: Optional[LWTConfig] = Field(None, description="Last Will and Testament configuration")
 
 
+class VestaboardConfig(BaseModel):
+    """Vestaboard API configuration."""
+
+    api_key: Optional[str] = Field(None, description="Vestaboard Cloud API key")
+    local_api_key: Optional[str] = Field(None, description="Vestaboard Local API key")
+    use_local_api: bool = Field(False, description="Use Local API instead of Cloud API")
+    local_host: str = Field("vestaboard.local", description="Local API hostname")
+    local_port: int = Field(7000, ge=1, le=65535, description="Local API port")
+    board_type: str = Field("standard", description="Board type: 'standard' or 'note'")
+    max_queue_size: int = Field(10, ge=1, description="Maximum message queue size")
+
+    @field_validator('board_type')
+    @classmethod
+    def validate_board_type(cls, v: str) -> str:
+        """Validate board type is 'standard' or 'note'."""
+        v_lower = v.lower().strip()
+
+        if v_lower in ("standard", "note", ""):
+            return v
+
+        raise ValueError(f"Unknown board_type: '{v}'. Valid options: 'standard' or 'note'")
+
+    @model_validator(mode='after')
+    def validate_api_key(self) -> 'VestaboardConfig':
+        """Validate that at least one API key is provided."""
+        if not self.api_key and not self.local_api_key:
+            raise ValueError("Either api_key or local_api_key must be provided")
+        return self
+
+
 class AppConfig(BaseModel):
     """Main application configuration."""
 
-    vestaboard_api_key: Optional[str] = Field(None, description="Vestaboard API key")
+    vestaboard: VestaboardConfig = Field(..., description="Vestaboard configuration")
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig, description="MQTT configuration")
     http_port: int = Field(8000, ge=1, le=65535, description="HTTP API port")
-    max_queue_size: int = Field(10, ge=1, description="Maximum message queue size")
+
+    # Deprecated - kept for backward compatibility, use vestaboard.max_queue_size instead
+    max_queue_size: Optional[int] = Field(None, ge=1, description="Maximum message queue size (deprecated)")
+
+    @property
+    def effective_max_queue_size(self) -> int:
+        """Get effective max queue size, preferring vestaboard config."""
+        return self.max_queue_size or self.vestaboard.max_queue_size
 
     @classmethod
     def from_env(cls) -> 'AppConfig':
@@ -119,9 +156,20 @@ class AppConfig(BaseModel):
             lwt=lwt_config
         )
 
+        # Build Vestaboard configuration
+        vestaboard_config = VestaboardConfig(
+            api_key=os.getenv("VESTABOARD_API_KEY"),
+            local_api_key=os.getenv("VESTABOARD_LOCAL_API_KEY"),
+            use_local_api=parse_bool(os.getenv("USE_LOCAL_API"), False),
+            local_host=os.getenv("VESTABOARD_LOCAL_HOST", "vestaboard.local"),
+            local_port=int(os.getenv("VESTABOARD_LOCAL_PORT", "7000")),
+            board_type=os.getenv("VESTABOARD_BOARD_TYPE", "standard"),
+            max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10"))
+        )
+
         # Build main application configuration
         return cls(
-            vestaboard_api_key=os.getenv("VESTABOARD_LOCAL_API_KEY") or os.getenv("VESTABOARD_API_KEY"),
+            vestaboard=vestaboard_config,
             mqtt=mqtt_config,
             http_port=int(os.getenv("HTTP_PORT", "8000")),
             max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10"))

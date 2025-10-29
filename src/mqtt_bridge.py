@@ -41,8 +41,8 @@ class VestaboardMQTTBridge:
 
         # Initialize Vestaboard client
         self.vestaboard_client = create_vestaboard_client(
-            api_key=config.vestaboard_api_key,
-            max_queue_size=config.max_queue_size
+            api_key=config.vestaboard.api_key,
+            max_queue_size=config.effective_max_queue_size
         )
 
         # Initialize MQTT client
