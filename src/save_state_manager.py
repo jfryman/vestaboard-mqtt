@@ -1,11 +1,14 @@
 """Save state manager for storing and retrieving Vestaboard states via MQTT."""
 
 import json
+import logging
 import time
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict, TYPE_CHECKING
 import paho.mqtt.client as mqtt
 from .vestaboard_client import BaseVestaboardClient
-from .logger import setup_logger
+
+if TYPE_CHECKING:
+    from .config import AppConfig
 
 
 class SaveData(TypedDict):
@@ -23,7 +26,12 @@ class SaveStateManager:
     by named slots.
     """
 
-    def __init__(self, mqtt_client: mqtt.Client, vestaboard_client: BaseVestaboardClient, topic_prefix: str = "vestaboard"):
+    def __init__(
+        self,
+        mqtt_client: mqtt.Client,
+        vestaboard_client: BaseVestaboardClient,
+        topic_prefix: str = "vestaboard"
+    ):
         """Initialize the save state manager.
 
         Args:
@@ -34,7 +42,7 @@ class SaveStateManager:
         self.mqtt_client = mqtt_client
         self.vestaboard_client = vestaboard_client
         self.save_topic_prefix = f"{topic_prefix.rstrip('/')}/states/"
-        self.logger = setup_logger(__name__)
+        self.logger = logging.getLogger(__name__)
 
     def _get_slot_topic(self, slot: str) -> str:
         """Generate the MQTT topic for a given slot.

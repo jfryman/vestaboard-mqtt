@@ -99,9 +99,20 @@ class AppConfig(BaseModel):
     vestaboard: VestaboardConfig = Field(..., description="Vestaboard configuration")
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig, description="MQTT configuration")
     http_port: int = Field(8000, ge=1, le=65535, description="HTTP API port")
+    log_level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     # Deprecated - kept for backward compatibility, use vestaboard.max_queue_size instead
     max_queue_size: Optional[int] = Field(None, ge=1, description="Maximum message queue size (deprecated)")
+
+    @field_validator('log_level')
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        """Validate log level is a valid Python logging level."""
+        valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+        v_upper = v.upper().strip()
+        if v_upper not in valid_levels:
+            raise ValueError(f"Invalid log_level: '{v}'. Valid options: {', '.join(sorted(valid_levels))}")
+        return v_upper
 
     @property
     def effective_max_queue_size(self) -> int:
@@ -172,5 +183,6 @@ class AppConfig(BaseModel):
             vestaboard=vestaboard_config,
             mqtt=mqtt_config,
             http_port=int(os.getenv("HTTP_PORT", "8000")),
+            log_level=os.getenv("LOG_LEVEL", "INFO"),
             max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10"))
         )

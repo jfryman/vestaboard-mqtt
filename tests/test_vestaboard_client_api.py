@@ -280,8 +280,8 @@ class TestDebugLayoutPreview:
 
     def test_debug_layout_preview(self):
         """Test layout preview logging."""
-        from src.logger import setup_logger
-        logger = setup_logger("test")
+        import logging
+        logger = logging.getLogger("test")
 
         layout = [[1, 2, 3], [4, 5, 6]]
         # Should not raise exception
@@ -289,8 +289,8 @@ class TestDebugLayoutPreview:
 
     def test_debug_layout_preview_empty(self):
         """Test preview with empty layout."""
-        from src.logger import setup_logger
-        logger = setup_logger("test")
+        import logging
+        logger = logging.getLogger("test")
 
         layout = [[]]
         debug_layout_preview(layout, logger)

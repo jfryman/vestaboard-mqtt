@@ -1,21 +1,25 @@
 """Main application entry point."""
 
+import logging
 import threading
 import uvicorn
 from .config import AppConfig
 from .mqtt_bridge import VestaboardMQTTBridge
 from .http_api import create_app
-from .logger import setup_logger
+from .logger import configure_logging
 
 
 def main():
     """Main application entry point."""
-    # Set up main logger first
-    logger = setup_logger(__name__)
-
     try:
-        # Load configuration from environment
+        # Load configuration from environment first
         config = AppConfig.from_env()
+
+        # Configure logging globally (once)
+        configure_logging(config)
+
+        # Get logger for this module
+        logger = logging.getLogger(__name__)
         logger.info("Configuration loaded successfully")
 
         # Initialize MQTT bridge with configuration

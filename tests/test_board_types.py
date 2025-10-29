@@ -8,7 +8,7 @@ from src.vestaboard_client import (
     CHAR_CODE_MAP,
     TEXT_TO_CODE_MAP,
 )
-from src.logger import setup_logger
+import logging
 
 
 class TestBoardTypeConstants:
@@ -140,14 +140,14 @@ class TestDebugLayoutPreview:
 
     def test_preview_handles_empty_layout(self, caplog):
         """Test that preview handles empty layout gracefully."""
-        logger = setup_logger(__name__)
+        logger = logging.getLogger(__name__)
         debug_layout_preview([], logger)
         # Should log "Empty layout"
         assert "Empty layout" in caplog.text or True  # Logging might not be captured
 
     def test_preview_shows_correct_dimensions(self, caplog):
         """Test that preview displays correct dimensions."""
-        logger = setup_logger(__name__)
+        logger = logging.getLogger(__name__)
         layout = text_to_layout("TEST", BoardType.STANDARD)
         debug_layout_preview(layout, logger)
         # Preview should mention dimensions
@@ -155,7 +155,7 @@ class TestDebugLayoutPreview:
 
     def test_preview_limits_rows(self, caplog):
         """Test that preview limits number of rows displayed."""
-        logger = setup_logger(__name__)
+        logger = logging.getLogger(__name__)
         layout = text_to_layout("TEST", BoardType.STANDARD)
         # With default max_preview_rows=3, should only show 3 rows
         debug_layout_preview(layout, logger, max_preview_rows=2)
@@ -163,7 +163,7 @@ class TestDebugLayoutPreview:
 
     def test_preview_handles_nonstandard_dimensions(self, caplog):
         """Test preview works with non-standard board dimensions."""
-        logger = setup_logger(__name__)
+        logger = logging.getLogger(__name__)
         layout = text_to_layout("HI", BoardType.NOTE)
         debug_layout_preview(layout, logger)
         # Should handle 3x15 layout without errors

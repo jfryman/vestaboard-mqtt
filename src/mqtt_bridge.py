@@ -1,6 +1,7 @@
 """MQTT bridge for Vestaboard with save states and timed messages."""
 
 import json
+import logging
 import ssl
 import threading
 import time
@@ -9,7 +10,6 @@ import paho.mqtt.client as mqtt
 from .config import AppConfig, TLSConfig, LWTConfig
 from .vestaboard_client import create_vestaboard_client
 from .save_state_manager import SaveStateManager
-from .logger import setup_logger
 
 
 # Topic suffix constants
@@ -37,7 +37,7 @@ class VestaboardMQTTBridge:
         """
         self.config = config
         self.topic_prefix = config.mqtt.topic_prefix.rstrip("/")
-        self.logger = setup_logger(__name__)
+        self.logger = logging.getLogger(__name__)
 
         # Initialize Vestaboard client
         self.vestaboard_client = create_vestaboard_client(

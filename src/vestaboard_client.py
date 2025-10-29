@@ -1,5 +1,6 @@
 """Vestaboard API client for reading and writing messages."""
 
+import logging
 import time
 import threading
 from collections import deque
@@ -9,10 +10,8 @@ from enum import Enum
 
 import requests
 
-from .logger import setup_logger
-
 if TYPE_CHECKING:
-    from .config import VestaboardConfig
+    from .config import AppConfig, VestaboardConfig
 
 
 # Vestaboard character code mapping (shared across all clients)
@@ -365,7 +364,7 @@ class VestaboardClient(BaseVestaboardClient, RateLimitMixin):
             "X-Vestaboard-Read-Write-Key": api_key,
             "Content-Type": "application/json"
         }
-        self.logger = setup_logger(__name__)
+        self.logger = logging.getLogger(__name__)
         self.logger.info(f"Initialized Cloud API client for {board_type} board")
 
     @property
@@ -538,7 +537,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             "X-Vestaboard-Local-Api-Key": api_key,
             "Content-Type": "application/json"
         }
-        self.logger = setup_logger(__name__)
+        self.logger = logging.getLogger(__name__)
         self.logger.info(f"Initialized Local API client for {board_type} board at {host}:{port}")
 
     @property
@@ -734,7 +733,7 @@ def create_vestaboard_client(
         >>> app_config = AppConfig.from_env()
         >>> client = create_vestaboard_client(config=app_config.vestaboard)
     """
-    logger = setup_logger(__name__)
+    logger = logging.getLogger(__name__)
 
     # If config is provided, extract all values from it
     if config is not None:
