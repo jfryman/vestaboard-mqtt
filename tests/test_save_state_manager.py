@@ -2,10 +2,12 @@
 
 import json
 import time
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
+
 import paho.mqtt.client as mqtt
-from src.save_state_manager import SaveStateManager
+import pytest
+
+from src.state import SaveStateManager
 
 
 class TestSaveStateManagerInitialization:
@@ -27,7 +29,9 @@ class TestSaveStateManagerInitialization:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board")
+        manager = SaveStateManager(
+            mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board"
+        )
 
         assert manager.save_topic_prefix == "office-board/states/"
 
@@ -36,7 +40,9 @@ class TestSaveStateManagerInitialization:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client, topic_prefix="vestaboard/")
+        manager = SaveStateManager(
+            mock_mqtt_client, mock_vestaboard_client, topic_prefix="vestaboard/"
+        )
 
         assert manager.save_topic_prefix == "vestaboard/states/"
 
@@ -50,12 +56,7 @@ class TestSaveCurrentState:
         mock_vestaboard_client = Mock()
 
         # Mock the current message
-        current_message = {
-            "currentMessage": {
-                "layout": [[1, 2, 3], [4, 5, 6]],
-                "id": "msg_123"
-            }
-        }
+        current_message = {"currentMessage": {"layout": [[1, 2, 3], [4, 5, 6]], "id": "msg_123"}}
         mock_vestaboard_client.read_current_message.return_value = current_message
 
         # Mock MQTT publish success
@@ -74,8 +75,8 @@ class TestSaveCurrentState:
         # Check publish arguments
         call_args = mock_mqtt_client.publish.call_args
         assert call_args[0][0] == "vestaboard/states/test_slot"
-        assert call_args[1]['qos'] == 1
-        assert call_args[1]['retain'] is True
+        assert call_args[1]["qos"] == 1
+        assert call_args[1]["retain"] is True
 
         # Verify payload structure
         payload = json.loads(call_args[0][1])
@@ -102,12 +103,7 @@ class TestSaveCurrentState:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        current_message = {
-            "currentMessage": {
-                "layout": [[1, 2, 3]],
-                "id": "msg_123"
-            }
-        }
+        current_message = {"currentMessage": {"layout": [[1, 2, 3]], "id": "msg_123"}}
         mock_vestaboard_client.read_current_message.return_value = current_message
 
         # Mock MQTT publish failure
@@ -138,19 +134,16 @@ class TestSaveCurrentState:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        current_message = {
-            "currentMessage": {
-                "layout": [[1, 2, 3]],
-                "id": "msg_123"
-            }
-        }
+        current_message = {"currentMessage": {"layout": [[1, 2, 3]], "id": "msg_123"}}
         mock_vestaboard_client.read_current_message.return_value = current_message
 
         mock_result = Mock()
         mock_result.rc = mqtt.MQTT_ERR_SUCCESS
         mock_mqtt_client.publish.return_value = mock_result
 
-        manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board")
+        manager = SaveStateManager(
+            mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board"
+        )
 
         success = manager.save_current_state("test_slot")
 
@@ -173,7 +166,7 @@ class TestRestoreFromData:
         save_data = {
             "layout": [[1, 2, 3], [4, 5, 6]],
             "saved_at": int(time.time()),
-            "original_id": "msg_123"
+            "original_id": "msg_123",
         }
 
         success = manager.restore_from_data(save_data)
@@ -188,10 +181,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "saved_at": int(time.time()),
-            "original_id": "msg_123"
-        }
+        save_data = {"saved_at": int(time.time()), "original_id": "msg_123"}
 
         success = manager.restore_from_data(save_data)
 
@@ -206,10 +196,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": '[[1, 2, 3], [4, 5, 6]]',
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": "[[1, 2, 3], [4, 5, 6]]", "saved_at": int(time.time())}
 
         success = manager.restore_from_data(save_data)
 
@@ -224,10 +211,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": {"message": [[1, 2, 3], [4, 5, 6]]},
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": {"message": [[1, 2, 3], [4, 5, 6]]}, "saved_at": int(time.time())}
 
         success = manager.restore_from_data(save_data)
 
@@ -241,10 +225,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": 12345,  # Invalid type
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": 12345, "saved_at": int(time.time())}  # Invalid type
 
         success = manager.restore_from_data(save_data)
 
@@ -259,10 +240,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": [[1, 2, 3]],
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": [[1, 2, 3]], "saved_at": int(time.time())}
 
         success = manager.restore_from_data(save_data)
 
@@ -276,10 +254,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": [[1, 2, 3]],
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": [[1, 2, 3]], "saved_at": int(time.time())}
 
         success = manager.restore_from_data(save_data)
 
@@ -292,10 +267,7 @@ class TestRestoreFromData:
 
         manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-        save_data = {
-            "layout": "invalid json [[[",
-            "saved_at": int(time.time())
-        }
+        save_data = {"layout": "invalid json [[[", "saved_at": int(time.time())}
 
         success = manager.restore_from_data(save_data)
 
@@ -325,8 +297,8 @@ class TestDeleteSavedState:
         call_args = mock_mqtt_client.publish.call_args
         assert call_args[0][0] == "vestaboard/states/test_slot"
         assert call_args[0][1] is None  # Empty payload
-        assert call_args[1]['qos'] == 1
-        assert call_args[1]['retain'] is True
+        assert call_args[1]["qos"] == 1
+        assert call_args[1]["retain"] is True
 
     def test_delete_saved_state_publish_failure(self):
         """Test delete fails when MQTT publish fails."""
@@ -364,7 +336,9 @@ class TestDeleteSavedState:
         mock_result.rc = mqtt.MQTT_ERR_SUCCESS
         mock_mqtt_client.publish.return_value = mock_result
 
-        manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board")
+        manager = SaveStateManager(
+            mock_mqtt_client, mock_vestaboard_client, topic_prefix="office-board"
+        )
 
         success = manager.delete_saved_state("test_slot")
 
@@ -389,14 +363,17 @@ class TestRestoreState:
         assert success is True
 
 
-@pytest.mark.parametrize("layout_data,expected_layout", [
-    # Normal list layout
-    ([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]),
-    # JSON string layout
-    ('[[1, 2], [3, 4]]', [[1, 2], [3, 4]]),
-    # Message wrapper format
-    ({"message": [[1, 2, 3]]}, [[1, 2, 3]]),
-])
+@pytest.mark.parametrize(
+    "layout_data,expected_layout",
+    [
+        # Normal list layout
+        ([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]]),
+        # JSON string layout
+        ("[[1, 2], [3, 4]]", [[1, 2], [3, 4]]),
+        # Message wrapper format
+        ({"message": [[1, 2, 3]]}, [[1, 2, 3]]),
+    ],
+)
 def test_restore_from_data_parametrized(layout_data, expected_layout):
     """Parametrized test for various layout formats."""
     mock_mqtt_client = Mock()
@@ -405,10 +382,7 @@ def test_restore_from_data_parametrized(layout_data, expected_layout):
 
     manager = SaveStateManager(mock_mqtt_client, mock_vestaboard_client)
 
-    save_data = {
-        "layout": layout_data,
-        "saved_at": int(time.time())
-    }
+    save_data = {"layout": layout_data, "saved_at": int(time.time())}
 
     success = manager.restore_from_data(save_data)
 
@@ -424,12 +398,7 @@ class TestSaveDataFormat:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        current_message = {
-            "currentMessage": {
-                "layout": [[1, 2, 3]],
-                "id": "msg_123"
-            }
-        }
+        current_message = {"currentMessage": {"layout": [[1, 2, 3]], "id": "msg_123"}}
         mock_vestaboard_client.read_current_message.return_value = current_message
 
         mock_result = Mock()
@@ -460,12 +429,7 @@ class TestSaveDataFormat:
         mock_mqtt_client = Mock()
         mock_vestaboard_client = Mock()
 
-        current_message = {
-            "currentMessage": {
-                "layout": [[1, 2, 3]],
-                "id": "msg_123"
-            }
-        }
+        current_message = {"currentMessage": {"layout": [[1, 2, 3]], "id": "msg_123"}}
         mock_vestaboard_client.read_current_message.return_value = current_message
 
         mock_result = Mock()

@@ -1,62 +1,53 @@
-"""Centralized logging configuration for Vestaboard MQTT Bridge."""
+"""Centralized logging configuration for Vestaboard MQTT Bridge.
+
+This module provides a singleton-style logging configuration.
+Call configure_logging() once at application startup, then use
+standard logging.getLogger(__name__) throughout the codebase.
+"""
 
 import logging
 import sys
-import os
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .config import AppConfig
+
+# Module-level constants
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
-def setup_logger(name: str, level: Optional[str] = None) -> logging.Logger:
-    """Set up a logger with consistent formatting.
-    
+def configure_logging(config: "AppConfig") -> None:
+    """Configure application-wide logging from AppConfig.
+
+    This should be called once at application startup. After calling this,
+    all modules can use logging.getLogger(__name__) and will automatically
+    use the configured format and level.
+
     Args:
-        name: Logger name (usually __name__)
-        level: Log level override (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        
-    Returns:
-        Configured logger instance
+        config: Application configuration
+
+    Example:
+        >>> from .config import AppConfig
+        >>> config = AppConfig.from_env()
+        >>> configure_logging(config)
+        >>> logger = logging.getLogger(__name__)
+        >>> logger.info("Application started")
     """
-    # Get log level from environment or default to INFO
-    if level is None:
-        level = os.getenv("LOG_LEVEL", "INFO").upper()
-    
-    # Create logger
-    logger = logging.getLogger(name)
-    
-    # Avoid duplicate handlers if logger already configured
-    if logger.handlers:
-        return logger
-    
-    logger.setLevel(getattr(logging, level, logging.INFO))
-    
-    # Create console handler
+    # Parse log level
+    log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    # Remove any existing handlers to avoid duplicates
+    root_logger.handlers.clear()
+
+    # Create and configure console handler
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(getattr(logging, level, logging.INFO))
-    
-    # Create formatter
-    formatter = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    handler.setFormatter(formatter)
-    
-    # Add handler to logger
-    logger.addHandler(handler)
-    
-    return logger
+    handler.setLevel(log_level)
+    handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT))
 
-
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance.
-    
-    Args:
-        name: Logger name (usually __name__)
-        
-    Returns:
-        Logger instance
-    """
-    return logging.getLogger(name)
-
-
-# Module-level logger for convenience
-logger = setup_logger(__name__)
+    # Attach handler to root logger
+    root_logger.addHandler(handler)

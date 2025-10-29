@@ -2,18 +2,22 @@
 
 import json
 import time
+from unittest.mock import MagicMock, Mock, call, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from src.mqtt_bridge import VestaboardMQTTBridge
-from src.save_state_manager import SaveStateManager
-from src.http_api import create_app
 from fastapi.testclient import TestClient
+
+from src.config import AppConfig, MQTTConfig
+from src.http_api import create_app
+from src.mqtt import VestaboardMQTTBridge
+from src.state import SaveStateManager
+from tests.conftest import create_test_app_config, create_test_mqtt_config
 
 
 class TestMQTTBridgeIntegration:
     """Integration tests for MQTT bridge with Vestaboard client."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_complete_message_flow(self, mock_create_client):
         """Test complete message flow from MQTT to Vestaboard."""
         # Setup mock Vestaboard client
@@ -22,8 +26,8 @@ class TestMQTTBridgeIntegration:
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Simulate MQTT message
         mock_message = Mock()
@@ -35,23 +39,20 @@ class TestMQTTBridgeIntegration:
         # Verify message was sent to Vestaboard
         mock_vestaboard.write_message.assert_called_once_with("HELLO WORLD")
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_save_and_restore_flow(self, mock_create_client):
         """Test save and restore flow."""
         # Setup mock Vestaboard client
         mock_vestaboard = Mock()
         mock_vestaboard.read_current_message.return_value = {
-            "currentMessage": {
-                "layout": [[1, 2, 3], [4, 5, 6]],
-                "id": "msg_123"
-            }
+            "currentMessage": {"layout": [[1, 2, 3], [4, 5, 6]], "id": "msg_123"}
         }
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Mock MQTT publish
         bridge.mqtt_client.publish = Mock(return_value=Mock(rc=0))
@@ -67,18 +68,15 @@ class TestMQTTBridgeIntegration:
         mock_vestaboard.read_current_message.assert_called_once()
         bridge.mqtt_client.publish.assert_called()
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
-    @patch('src.mqtt_bridge.threading.Timer')
+    @patch("src.vestaboard.create_vestaboard_client")
+    @patch("src.mqtt.timers.threading.Timer")
     def test_timed_message_flow(self, mock_timer_class, mock_create_client):
         """Test timed message end-to-end flow."""
         # Setup mocks
         mock_vestaboard = Mock()
         mock_vestaboard.write_message.return_value = True
         mock_vestaboard.read_current_message.return_value = {
-            "currentMessage": {
-                "layout": [[0] * 22 for _ in range(6)],
-                "id": "msg_old"
-            }
+            "currentMessage": {"layout": [[0] * 22 for _ in range(6)], "id": "msg_old"}
         }
         mock_create_client.return_value = mock_vestaboard
 
@@ -86,8 +84,8 @@ class TestMQTTBridgeIntegration:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Mock MQTT publish
         bridge.mqtt_client.publish = Mock(return_value=Mock(rc=0))
@@ -95,10 +93,9 @@ class TestMQTTBridgeIntegration:
         # Test timed message
         mock_timed_message = Mock()
         mock_timed_message.topic = "vestaboard/timed-message"
-        mock_timed_message.payload = json.dumps({
-            "message": "ALERT",
-            "duration_seconds": 30
-        }).encode()
+        mock_timed_message.payload = json.dumps(
+            {"message": "ALERT", "duration_seconds": 30}
+        ).encode()
 
         bridge._on_message(None, None, mock_timed_message)
 
@@ -124,10 +121,7 @@ class TestSaveStateIntegration:
         mock_vestaboard = Mock()
         original_layout = [[1, 2, 3], [4, 5, 6]]
         mock_vestaboard.read_current_message.return_value = {
-            "currentMessage": {
-                "layout": original_layout,
-                "id": "msg_123"
-            }
+            "currentMessage": {"layout": original_layout, "id": "msg_123"}
         }
         mock_vestaboard.write_message.return_value = True
 
@@ -161,10 +155,7 @@ class TestSaveStateIntegration:
         # Save to different slots with different data
         for i, slot_name in enumerate(["slot1", "slot2", "slot3"]):
             mock_vestaboard.read_current_message.return_value = {
-                "currentMessage": {
-                    "layout": [[i] * 22 for _ in range(6)],
-                    "id": f"msg_{i}"
-                }
+                "currentMessage": {"layout": [[i] * 22 for _ in range(6)], "id": f"msg_{i}"}
             }
 
             success = manager.save_current_state(slot_name)
@@ -181,15 +172,15 @@ class TestSaveStateIntegration:
 class TestHTTPAPIIntegration:
     """Integration tests for HTTP API with MQTT bridge."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_api_reflects_bridge_state(self, mock_create_client):
         """Test that HTTP API accurately reflects bridge state."""
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Create API
         app = create_app(bridge)
@@ -201,21 +192,21 @@ class TestHTTPAPIIntegration:
 
         # Add some timers
         mock_timer = Mock()
-        bridge.active_timers["timer_1"] = mock_timer
-        bridge.active_timers["timer_2"] = mock_timer
+        bridge.timer_manager.active_timers["timer_1"] = mock_timer
+        bridge.timer_manager.active_timers["timer_2"] = mock_timer
 
         # Check metrics updated
         response = client.get("/metrics")
         assert response.json()["active_timers"] == 2
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_readiness_reflects_mqtt_connection(self, mock_create_client):
         """Test readiness endpoint reflects actual MQTT connection state."""
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         app = create_app(bridge)
         client = TestClient(app)
@@ -234,7 +225,7 @@ class TestHTTPAPIIntegration:
 class TestMultiVestaboardScenario:
     """Integration tests simulating multi-Vestaboard deployment."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_independent_bridge_instances(self, mock_create_client):
         """Test that multiple bridge instances with different prefixes work independently."""
         # Create two bridges with different prefixes
@@ -244,19 +235,17 @@ class TestMultiVestaboardScenario:
         # Configure mock to return different clients
         mock_create_client.side_effect = [mock_vestaboard1, mock_vestaboard2]
 
-        mqtt_config1 = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "office-board"
-        }
-        bridge1 = VestaboardMQTTBridge(vestaboard_api_key="key1", mqtt_config=mqtt_config1)
+        mqtt_config1 = create_test_mqtt_config(topic_prefix="office-board")
+        config1 = create_test_app_config(
+            vestaboard_api_key="key1", mqtt_config=mqtt_config1, http_port=8000
+        )
+        bridge1 = VestaboardMQTTBridge(config1)
 
-        mqtt_config2 = {
-            "host": "localhost",
-            "port": 1883,
-            "topic_prefix": "lobby-board"
-        }
-        bridge2 = VestaboardMQTTBridge(vestaboard_api_key="key2", mqtt_config=mqtt_config2)
+        mqtt_config2 = create_test_mqtt_config(topic_prefix="lobby-board")
+        config2 = create_test_app_config(
+            vestaboard_api_key="key2", mqtt_config=mqtt_config2, http_port=8001
+        )
+        bridge2 = VestaboardMQTTBridge(config2)
 
         # Verify different topic prefixes
         assert bridge1.topic_prefix == "office-board"
@@ -285,15 +274,15 @@ class TestMultiVestaboardScenario:
 class TestErrorRecovery:
     """Integration tests for error handling and recovery."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_vestaboard_api_failure_recovery(self, mock_create_client):
         """Test that bridge handles Vestaboard API failures gracefully."""
         mock_vestaboard = Mock()
         mock_vestaboard.write_message.side_effect = [False, True]  # Fail then succeed
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         mock_message = Mock()
         mock_message.topic = "vestaboard/message"
@@ -308,14 +297,14 @@ class TestErrorRecovery:
         # Both attempts were made
         assert mock_vestaboard.write_message.call_count == 2
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_malformed_json_handling(self, mock_create_client):
         """Test that bridge handles malformed JSON gracefully."""
         mock_vestaboard = Mock()
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Test malformed timed message JSON
         mock_message = Mock()
@@ -349,8 +338,8 @@ class TestErrorRecovery:
 class TestCompleteWorkflow:
     """Integration test for complete real-world workflows."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
-    @patch('src.mqtt_bridge.threading.Timer')
+    @patch("src.vestaboard.create_vestaboard_client")
+    @patch("src.mqtt.timers.threading.Timer")
     def test_complete_timed_message_workflow(self, mock_timer_class, mock_create_client):
         """Test complete timed message workflow with save/restore."""
         # Setup mocks
@@ -361,7 +350,7 @@ class TestCompleteWorkflow:
         # First read for save, second for verification
         mock_vestaboard.read_current_message.side_effect = [
             {"currentMessage": {"layout": original_layout, "id": "original"}},
-            {"currentMessage": {"layout": timed_layout, "id": "timed"}}
+            {"currentMessage": {"layout": timed_layout, "id": "timed"}},
         ]
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
@@ -370,15 +359,12 @@ class TestCompleteWorkflow:
         mock_timer_class.return_value = mock_timer
 
         # Create bridge
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
         bridge.mqtt_client.publish = Mock(return_value=Mock(rc=0))
 
         # Schedule timed message via MQTT
-        timed_payload = json.dumps({
-            "message": "ALERT",
-            "duration_seconds": 60
-        }).encode()
+        timed_payload = json.dumps({"message": "ALERT", "duration_seconds": 60}).encode()
 
         mock_message = Mock()
         mock_message.topic = "vestaboard/timed-message"
@@ -398,17 +384,17 @@ class TestCompleteWorkflow:
         mock_timer.start.assert_called_once()
 
         # 4. Timer is tracked
-        assert len(bridge.active_timers) == 1
+        assert len(bridge.timer_manager.active_timers) == 1
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_message_types_workflow(self, mock_create_client):
         """Test handling different message types in sequence."""
         mock_vestaboard = Mock()
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Test sequence of different message types
         messages = [
@@ -440,15 +426,15 @@ class TestCompleteWorkflow:
 class TestPerformance:
     """Performance and load integration tests."""
 
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_rapid_message_handling(self, mock_create_client):
         """Test bridge handles rapid successive messages."""
         mock_vestaboard = Mock()
         mock_vestaboard.write_message.return_value = True
         mock_create_client.return_value = mock_vestaboard
 
-        mqtt_config = {"host": "localhost", "port": 1883}
-        bridge = VestaboardMQTTBridge(vestaboard_api_key="test_key", mqtt_config=mqtt_config)
+        config = create_test_app_config()
+        bridge = VestaboardMQTTBridge(config)
 
         # Send 100 messages rapidly
         for i in range(100):
@@ -465,7 +451,8 @@ class TestPerformance:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)

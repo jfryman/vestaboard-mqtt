@@ -100,6 +100,8 @@ spec:
             # Vestaboard board type configuration
             - name: VESTABOARD_BOARD_TYPE
               value: {{ .Values.vestaboard.boardType | quote }}
+            - name: MAX_QUEUE_SIZE
+              value: {{ .Values.vestaboard.maxQueueSize | quote }}
             {{- if .Values.vestaboard.useLocalApi }}
             # Local API mode environment variables
             - name: USE_LOCAL_API
