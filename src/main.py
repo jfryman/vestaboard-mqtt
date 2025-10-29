@@ -14,16 +14,12 @@ def main():
     logger = setup_logger(__name__)
 
     try:
-        # Load configuration
+        # Load configuration from environment
         config = AppConfig.from_env()
         logger.info("Configuration loaded successfully")
 
-        # Initialize MQTT bridge
-        mqtt_bridge = VestaboardMQTTBridge(
-            config.vestaboard_api_key,
-            config.mqtt,
-            config.max_queue_size
-        )
+        # Initialize MQTT bridge with configuration
+        mqtt_bridge = VestaboardMQTTBridge(config)
 
         # Create HTTP API
         app = create_app(mqtt_bridge)
@@ -45,7 +41,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     except Exception as e:
-        logger.error(f"Error starting application: {e}")
+        logger.error(f"Error starting application: {e}", exc_info=True)
         raise
 
 

@@ -4,72 +4,105 @@ import json
 import ssl
 import threading
 import time
-from typing import Optional, Union, List
+from typing import Optional, Dict, Any
 import paho.mqtt.client as mqtt
-from .config import MQTTConfig, TLSConfig, LWTConfig
+from .config import AppConfig, TLSConfig, LWTConfig
 from .vestaboard_client import create_vestaboard_client
 from .save_state_manager import SaveStateManager
 from .logger import setup_logger
 
 
+# Topic suffix constants
+class Topics:
+    """MQTT topic suffixes."""
+    MESSAGE = "message"
+    SAVE = "save/+"
+    RESTORE = "restore/+"
+    DELETE = "delete/+"
+    TIMED_MESSAGE = "timed-message"
+    CANCEL_TIMER = "cancel-timer/+"
+    LIST_TIMERS = "list-timers"
+    TIMERS_RESPONSE = "timers-response"
+    STATES = "states"
+
+
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
 
-    def __init__(self, vestaboard_api_key: Optional[str] = None, mqtt_config: Optional[MQTTConfig] = None, max_queue_size: int = 10):
+    def __init__(self, config: AppConfig):
         """Initialize the MQTT bridge.
 
         Args:
-            vestaboard_api_key: Vestaboard API key (cloud or local), or None to auto-detect from env
-            mqtt_config: MQTT broker configuration (MQTTConfig object)
-            max_queue_size: Maximum number of messages to queue when rate limited
+            config: Application configuration object (use AppConfig.from_env())
         """
-        self.vestaboard_client = create_vestaboard_client(
-            api_key=vestaboard_api_key,
-            max_queue_size=max_queue_size
-        )
-        self.mqtt_config = mqtt_config or MQTTConfig()
-        self.topic_prefix = self.mqtt_config.topic_prefix.rstrip("/")
-        self.qos = self.mqtt_config.qos
-
-        # Initialize MQTT client with optional client ID and clean session
-        client_id = self.mqtt_config.client_id
-        clean_session = self.mqtt_config.clean_session
-        self.mqtt_client = mqtt.Client(client_id=client_id, clean_session=clean_session)
-
-        self.save_state_manager = SaveStateManager(self.mqtt_client, self.vestaboard_client, self.topic_prefix)
+        self.config = config
+        self.topic_prefix = config.mqtt.topic_prefix.rstrip("/")
         self.logger = setup_logger(__name__)
 
+        # Initialize Vestaboard client
+        self.vestaboard_client = create_vestaboard_client(
+            api_key=config.vestaboard_api_key,
+            max_queue_size=config.max_queue_size
+        )
+
+        # Initialize MQTT client
+        self.mqtt_client = self._create_mqtt_client()
+
+        # Initialize save state manager
+        self.save_state_manager = SaveStateManager(
+            self.mqtt_client,
+            self.vestaboard_client,
+            self.topic_prefix
+        )
+
         # Track timed messages
-        self.active_timers: dict[str, threading.Timer] = {}
+        self.active_timers: Dict[str, threading.Timer] = {}
 
-        # Set up MQTT callbacks
-        self.mqtt_client.on_connect = self._on_connect
-        self.mqtt_client.on_message = self._on_message
-        self.mqtt_client.on_disconnect = self._on_disconnect
+    def _create_mqtt_client(self) -> mqtt.Client:
+        """Create and configure MQTT client.
 
-        # Set up authentication if provided
-        if self.mqtt_config.username and self.mqtt_config.password:
-            self.mqtt_client.username_pw_set(
-                self.mqtt_config.username,
-                self.mqtt_config.password
+        Returns:
+            Configured MQTT client instance
+        """
+        client = mqtt.Client(
+            client_id=self.config.mqtt.client_id or "",
+            clean_session=self.config.mqtt.clean_session
+        )
+
+        # Set up callbacks
+        client.on_connect = self._on_connect
+        client.on_message = self._on_message
+        client.on_disconnect = self._on_disconnect
+
+        # Configure authentication
+        if self.config.mqtt.username and self.config.mqtt.password:
+            client.username_pw_set(
+                self.config.mqtt.username,
+                self.config.mqtt.password
             )
 
-        # Set up TLS/SSL if enabled
-        if self.mqtt_config.tls:
-            self._configure_tls(self.mqtt_config.tls)
+        # Configure TLS/SSL
+        if self.config.mqtt.tls:
+            self._configure_tls(client, self.config.mqtt.tls)
 
-        # Set up Last Will and Testament if configured
-        if self.mqtt_config.lwt:
-            self._configure_lwt(self.mqtt_config.lwt)
+        # Configure Last Will and Testament
+        if self.config.mqtt.lwt:
+            self._configure_lwt(client, self.config.mqtt.lwt)
 
-    def _configure_tls(self, tls_config: TLSConfig):
+        return client
+
+    def _configure_tls(self, client: mqtt.Client, tls_config: TLSConfig) -> None:
         """Configure TLS/SSL for MQTT connection.
 
         Args:
+            client: MQTT client instance
             tls_config: TLS configuration object
+
+        Raises:
+            Exception: If TLS configuration fails
         """
         try:
-            self.mqtt_client.tls_set(
+            client.tls_set(
                 ca_certs=tls_config.ca_certs,
                 certfile=tls_config.certfile,
                 keyfile=tls_config.keyfile,
@@ -79,23 +112,27 @@ class VestaboardMQTTBridge:
             )
             self.logger.info("TLS/SSL configured successfully")
 
-            # Disable certificate verification if insecure flag is set
             if tls_config.insecure:
-                self.mqtt_client.tls_insecure_set(True)
-                self.logger.warning("TLS certificate verification DISABLED - insecure mode active")
-
+                client.tls_insecure_set(True)
+                self.logger.warning(
+                    "TLS certificate verification DISABLED - insecure mode active"
+                )
         except Exception as e:
             self.logger.error(f"Failed to configure TLS/SSL: {e}")
             raise
 
-    def _configure_lwt(self, lwt_config: LWTConfig):
+    def _configure_lwt(self, client: mqtt.Client, lwt_config: LWTConfig) -> None:
         """Configure Last Will and Testament for MQTT connection.
 
         Args:
+            client: MQTT client instance
             lwt_config: LWT configuration object
+
+        Raises:
+            Exception: If LWT configuration fails
         """
         try:
-            self.mqtt_client.will_set(
+            client.will_set(
                 lwt_config.topic,
                 lwt_config.payload,
                 lwt_config.qos,
@@ -118,228 +155,381 @@ class VestaboardMQTTBridge:
         return f"{self.topic_prefix}/{suffix}"
 
     def _on_connect(self, client, userdata, flags, rc):
-        """Callback for when MQTT client connects."""
+        """Callback for when MQTT client connects.
+
+        Args:
+            client: MQTT client instance
+            userdata: User data set in client
+            flags: Connection flags
+            rc: Connection result code
+        """
         if rc == 0:
             self.logger.info("Connected to MQTT broker")
-            # Subscribe to all relevant topics
-            topic_suffixes = [
-                "message",
-                "save/+",
-                "restore/+",
-                "delete/+",
-                "timed-message",
-                "cancel-timer/+",
-                "list-timers"
-            ]
-            for suffix in topic_suffixes:
-                topic = self._get_topic(suffix)
-                client.subscribe(topic, qos=self.qos)
-                self.logger.debug(f"Subscribed to {topic} with QoS {self.qos}")
+            self._subscribe_to_topics(client)
         else:
             self.logger.error(f"Failed to connect to MQTT broker: {rc}")
+
+    def _subscribe_to_topics(self, client: mqtt.Client) -> None:
+        """Subscribe to all relevant MQTT topics.
+
+        Args:
+            client: MQTT client instance
+        """
+        topic_suffixes = [
+            Topics.MESSAGE,
+            Topics.SAVE,
+            Topics.RESTORE,
+            Topics.DELETE,
+            Topics.TIMED_MESSAGE,
+            Topics.CANCEL_TIMER,
+            Topics.LIST_TIMERS,
+        ]
+        qos = self.config.mqtt.qos
+
+        for suffix in topic_suffixes:
+            topic = self._get_topic(suffix)
+            client.subscribe(topic, qos=qos)
+            self.logger.debug(f"Subscribed to {topic} with QoS {qos}")
     
     def _on_disconnect(self, client, userdata, rc):
-        """Callback for when MQTT client disconnects."""
-        self.logger.warning(f"Disconnected from MQTT broker: {rc}")
-    
+        """Callback for when MQTT client disconnects.
+
+        Args:
+            client: MQTT client instance
+            userdata: User data set in client
+            rc: Disconnection result code
+        """
+        if rc != 0:
+            self.logger.warning(f"Unexpected disconnection from MQTT broker: {rc}")
+        else:
+            self.logger.info("Disconnected from MQTT broker")
+
     def _on_message(self, client, userdata, message):
-        """Handle incoming MQTT messages."""
+        """Handle incoming MQTT messages.
+
+        Args:
+            client: MQTT client instance
+            userdata: User data set in client
+            message: MQTT message
+        """
         topic = message.topic
-        payload = message.payload.decode('utf-8')
+        payload = message.payload.decode("utf-8")
 
         self.logger.debug(f"Received message on {topic}: {payload[:100]}...")
 
         try:
-            # Strip the prefix to get the suffix
-            if not topic.startswith(self.topic_prefix + "/"):
-                self.logger.warning(f"Received message on unexpected topic: {topic}")
+            suffix = self._extract_topic_suffix(topic)
+            if suffix is None:
                 return
 
-            suffix = topic[len(self.topic_prefix) + 1:]
-
-            if suffix == "message":
-                self._handle_message(payload)
-            elif suffix.startswith("save/"):
-                slot = suffix.split("/")[-1]
-                self._handle_save(slot)
-            elif suffix.startswith("restore/"):
-                slot = suffix.split("/")[-1]
-                self._handle_restore_request(slot)
-            elif suffix.startswith("delete/"):
-                slot = suffix.split("/")[-1]
-                self._handle_delete(slot)
-            elif suffix == "timed-message":
-                self._handle_timed_message(payload)
-            elif suffix.startswith("cancel-timer/"):
-                timer_id = suffix.split("/")[-1]
-                self._handle_cancel_timer(timer_id)
-            elif suffix == "list-timers":
-                self._handle_list_timers(payload)
+            self._route_message(suffix, payload)
         except Exception as e:
-            self.logger.error(f"Error handling message on {topic}: {e}")
+            self.logger.error(f"Error handling message on {topic}: {e}", exc_info=True)
+
+    def _extract_topic_suffix(self, topic: str) -> Optional[str]:
+        """Extract the suffix from a full topic path.
+
+        Args:
+            topic: Full MQTT topic path
+
+        Returns:
+            Topic suffix without prefix, or None if invalid
+        """
+        prefix_with_slash = f"{self.topic_prefix}/"
+        if not topic.startswith(prefix_with_slash):
+            self.logger.warning(f"Received message on unexpected topic: {topic}")
+            return None
+        return topic[len(prefix_with_slash):]
+
+    def _route_message(self, suffix: str, payload: str) -> None:
+        """Route message to appropriate handler based on topic suffix.
+
+        Args:
+            suffix: Topic suffix without prefix
+            payload: Message payload
+        """
+        # Direct match handlers
+        if suffix == Topics.MESSAGE.replace("/+", ""):
+            self._handle_message(payload)
+        elif suffix == Topics.TIMED_MESSAGE.replace("/+", ""):
+            self._handle_timed_message(payload)
+        elif suffix == Topics.LIST_TIMERS.replace("/+", ""):
+            self._handle_list_timers(payload)
+        # Pattern match handlers (with wildcards)
+        elif suffix.startswith("save/"):
+            slot = suffix.split("/", 1)[1]
+            self._handle_save(slot)
+        elif suffix.startswith("restore/"):
+            slot = suffix.split("/", 1)[1]
+            self._handle_restore_request(slot)
+        elif suffix.startswith("delete/"):
+            slot = suffix.split("/", 1)[1]
+            self._handle_delete(slot)
+        elif suffix.startswith("cancel-timer/"):
+            timer_id = suffix.split("/", 1)[1]
+            self._handle_cancel_timer(timer_id)
+        else:
+            self.logger.warning(f"Unknown topic suffix: {suffix}")
     
-    def _handle_message(self, payload: str):
-        """Handle regular message to display on Vestaboard."""
+    def _handle_message(self, payload: str) -> None:
+        """Handle regular message to display on Vestaboard.
+
+        Args:
+            payload: Message payload (text, JSON layout array, or JSON object)
+        """
         try:
-            # Try to parse as JSON first (for layout arrays)
-            try:
-                message_data = json.loads(payload)
-                if isinstance(message_data, list):
-                    # It's a layout array
-                    success = self.vestaboard_client.write_message(message_data)
-                elif isinstance(message_data, dict) and "text" in message_data:
-                    # It's a text message object
-                    success = self.vestaboard_client.write_message(message_data["text"])
-                else:
-                    # Treat as plain text
-                    success = self.vestaboard_client.write_message(str(message_data))
-            except json.JSONDecodeError:
-                # Not JSON, treat as plain text
-                success = self.vestaboard_client.write_message(payload)
-            
+            message_content = self._parse_message_payload(payload)
+            success = self.vestaboard_client.write_message(message_content)
+
             if success:
                 self.logger.info("Message sent to Vestaboard successfully")
             else:
                 self.logger.error("Failed to send message to Vestaboard")
-                
         except Exception as e:
-            self.logger.error(f"Error handling message: {e}")
+            self.logger.error(f"Error handling message: {e}", exc_info=True)
+
+    def _parse_message_payload(self, payload: str) -> Any:
+        """Parse message payload into appropriate format.
+
+        Args:
+            payload: Raw message payload
+
+        Returns:
+            Parsed message content (text string or layout array)
+        """
+        try:
+            message_data = json.loads(payload)
+            if isinstance(message_data, list):
+                # Layout array
+                return message_data
+            elif isinstance(message_data, dict) and "text" in message_data:
+                # Text message object
+                return message_data["text"]
+            else:
+                # Unknown JSON format, convert to string
+                return str(message_data)
+        except json.JSONDecodeError:
+            # Plain text message
+            return payload
     
-    def _handle_save(self, slot: str):
-        """Handle save current state request."""
+    def _handle_save(self, slot: str) -> None:
+        """Handle save current state request.
+
+        Args:
+            slot: Save slot name
+        """
         success = self.save_state_manager.save_current_state(slot)
         if success:
             self.logger.info(f"Saved current state to slot '{slot}'")
         else:
             self.logger.error(f"Failed to save state to slot '{slot}'")
-    
-    def _handle_restore_request(self, slot: str):
-        """Handle restore state request."""
+
+    def _handle_restore_request(self, slot: str) -> None:
+        """Handle restore state request.
+
+        Args:
+            slot: Save slot name to restore from
+        """
         self.logger.info(f"Requested restore from slot '{slot}'")
         self._restore_from_slot(slot)
     
-    def _restore_from_slot(self, slot: str):
-        """Internal method to restore from a slot (used by both manual and timed restores)."""
-        state_topic = self._get_topic(f"states/{slot}")
+    def _restore_from_slot(self, slot: str) -> None:
+        """Internal method to restore from a slot (used by both manual and timed restores).
+
+        Args:
+            slot: Save slot name to restore from
+        """
+        state_topic = self._get_topic(f"{Topics.STATES}/{slot}")
 
         def on_restore_message(client, userdata, message):
-            if message.topic == state_topic:
-                try:
-                    if message.payload:
-                        payload_str = message.payload.decode('utf-8')
-                        self.logger.debug(f"Received save data payload (first 100 chars): {payload_str[:100]}...")
-                        save_data = json.loads(payload_str)
-                        self.logger.debug(f"Parsed save data keys: {list(save_data.keys())}")
-                        success = self.save_state_manager.restore_from_data(save_data)
-                        if success:
-                            self.logger.info(f"Restored state from slot '{slot}'")
-                        else:
-                            self.logger.error(f"Failed to restore state from slot '{slot}'")
-                    else:
-                        self.logger.warning(f"No saved state found in slot '{slot}'")
-                except json.JSONDecodeError as e:
-                    self.logger.error(f"Invalid save data for slot '{slot}': {e}")
-                except Exception as e:
-                    self.logger.error(f"Error restoring from slot '{slot}': {e}")
-                finally:
-                    # Unsubscribe after handling the message
-                    client.unsubscribe(state_topic)
-                    # Remove the temporary message handler
-                    client.message_callback_remove(state_topic)
-        
+            """Callback to handle restore message."""
+            if message.topic != state_topic:
+                return
+
+            try:
+                if not message.payload:
+                    self.logger.warning(f"No saved state found in slot '{slot}'")
+                    return
+
+                payload_str = message.payload.decode("utf-8")
+                self.logger.debug(
+                    f"Received save data payload (first 100 chars): {payload_str[:100]}..."
+                )
+
+                save_data = json.loads(payload_str)
+                self.logger.debug(f"Parsed save data keys: {list(save_data.keys())}")
+
+                success = self.save_state_manager.restore_from_data(save_data)
+                if success:
+                    self.logger.info(f"Restored state from slot '{slot}'")
+                else:
+                    self.logger.error(f"Failed to restore state from slot '{slot}'")
+
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Invalid save data for slot '{slot}': {e}")
+            except Exception as e:
+                self.logger.error(
+                    f"Error restoring from slot '{slot}': {e}", exc_info=True
+                )
+            finally:
+                # Cleanup: unsubscribe and remove callback
+                client.unsubscribe(state_topic)
+                client.message_callback_remove(state_topic)
+
         # Set up temporary message callback for this specific topic
         self.mqtt_client.message_callback_add(state_topic, on_restore_message)
         # Subscribe to get the retained message
         self.mqtt_client.subscribe(state_topic)
-    
-    def _handle_delete(self, slot: str):
-        """Handle delete saved state request."""
+
+    def _handle_delete(self, slot: str) -> None:
+        """Handle delete saved state request.
+
+        Args:
+            slot: Save slot name to delete
+        """
         success = self.save_state_manager.delete_saved_state(slot)
         if success:
             self.logger.info(f"Deleted saved state from slot '{slot}'")
         else:
             self.logger.error(f"Failed to delete state from slot '{slot}'")
     
-    def _handle_timed_message(self, payload: str):
-        """Handle timed message request via MQTT."""
+    def _handle_timed_message(self, payload: str) -> None:
+        """Handle timed message request via MQTT.
+
+        Args:
+            payload: JSON payload with message, duration, and optional restore_slot
+        """
         try:
-            # Parse timed message request
             data = json.loads(payload)
             message = data.get("message", "")
             duration_seconds = data.get("duration_seconds", 60)
             restore_slot = data.get("restore_slot")
-            
+
             if not message:
                 self.logger.error("Timed message request missing 'message' field")
                 return
-            
-            timer_id = self.schedule_timed_message(message, duration_seconds, restore_slot)
-            
+
+            timer_id = self.schedule_timed_message(
+                message, duration_seconds, restore_slot
+            )
+
             # Optionally publish timer ID back to a response topic
             response_topic = data.get("response_topic")
             if response_topic:
-                response = {
-                    "timer_id": timer_id,
-                    "message": message,
-                    "duration_seconds": duration_seconds,
-                    "restore_slot": restore_slot
-                }
-                self.mqtt_client.publish(response_topic, json.dumps(response))
-                
+                self._publish_timer_response(
+                    response_topic, timer_id, message, duration_seconds, restore_slot
+                )
+
         except json.JSONDecodeError as e:
             self.logger.error(f"Invalid timed message JSON: {e}")
         except Exception as e:
-            self.logger.error(f"Error handling timed message: {e}")
-    
-    def _handle_cancel_timer(self, timer_id: str):
-        """Handle cancel timer request via MQTT."""
-        success = self.cancel_timed_message(timer_id)
-        self.logger.info(f"Timer {timer_id} cancellation: {'successful' if success else 'failed'}")
-    
-    def _handle_list_timers(self, payload: str):
-        """Handle list active timers request via MQTT."""
-        try:
-            # Parse request to get optional response topic
-            response_topic = self._get_topic("timers-response")  # default response topic
+            self.logger.error(f"Error handling timed message: {e}", exc_info=True)
 
-            if payload.strip():
-                try:
-                    data = json.loads(payload)
-                    # Allow custom response topic override
-                    response_topic = data.get("response_topic", response_topic)
-                except json.JSONDecodeError:
-                    # If not valid JSON, treat as response topic string
-                    response_topic = payload.strip()
-            
-            # Build timer info list
-            timer_info = []
-            current_time = time.time()
-            
-            for timer_id, timer in self.active_timers.items():
-                # Calculate remaining time (approximate)
-                # Note: Timer objects don't expose remaining time directly
-                # This is a limitation of threading.Timer
-                timer_info.append({
-                    "timer_id": timer_id,
-                    "active": timer.is_alive(),
-                    "created_at": timer_id.split("_")[-1] if "_" in timer_id else "unknown"
-                })
-            
+    def _publish_timer_response(
+        self,
+        topic: str,
+        timer_id: str,
+        message: str,
+        duration_seconds: int,
+        restore_slot: Optional[str],
+    ) -> None:
+        """Publish timer creation response.
+
+        Args:
+            topic: Response topic
+            timer_id: Created timer ID
+            message: Timed message content
+            duration_seconds: Timer duration
+            restore_slot: Restore slot name (if any)
+        """
+        response = {
+            "timer_id": timer_id,
+            "message": message,
+            "duration_seconds": duration_seconds,
+            "restore_slot": restore_slot,
+        }
+        self.mqtt_client.publish(topic, json.dumps(response))
+        self.logger.debug(f"Published timer response to {topic}")
+
+    def _handle_cancel_timer(self, timer_id: str) -> None:
+        """Handle cancel timer request via MQTT.
+
+        Args:
+            timer_id: Timer ID to cancel
+        """
+        success = self.cancel_timed_message(timer_id)
+        status = "successful" if success else "failed"
+        self.logger.info(f"Timer {timer_id} cancellation: {status}")
+    
+    def _handle_list_timers(self, payload: str) -> None:
+        """Handle list active timers request via MQTT.
+
+        Args:
+            payload: Optional JSON with response_topic, or plain topic string
+        """
+        try:
+            response_topic = self._parse_list_timers_payload(payload)
+            timer_info = self._build_timer_info_list()
+
             response = {
                 "active_timers": timer_info,
                 "total_count": len(timer_info),
-                "timestamp": int(current_time)
+                "timestamp": int(time.time()),
             }
-            
-            # Publish response
+
             self.mqtt_client.publish(response_topic, json.dumps(response, indent=2))
-            self.logger.info(f"Published timer list to {response_topic} ({len(timer_info)} active timers)")
-            
+            self.logger.info(
+                f"Published timer list to {response_topic} ({len(timer_info)} active timers)"
+            )
+
         except Exception as e:
-            self.logger.error(f"Error handling list timers request: {e}")
+            self.logger.error(f"Error handling list timers request: {e}", exc_info=True)
+
+    def _parse_list_timers_payload(self, payload: str) -> str:
+        """Parse list timers payload to extract response topic.
+
+        Args:
+            payload: Payload string (JSON or plain topic)
+
+        Returns:
+            Response topic path
+        """
+        default_topic = self._get_topic(Topics.TIMERS_RESPONSE)
+
+        if not payload.strip():
+            return default_topic
+
+        try:
+            data = json.loads(payload)
+            return data.get("response_topic", default_topic)
+        except json.JSONDecodeError:
+            # If not valid JSON, treat as response topic string
+            return payload.strip()
+
+    def _build_timer_info_list(self) -> list[Dict[str, Any]]:
+        """Build list of active timer information.
+
+        Returns:
+            List of timer info dictionaries
+        """
+        timer_info = []
+        for timer_id, timer in self.active_timers.items():
+            # Note: Timer objects don't expose remaining time directly
+            # This is a limitation of threading.Timer
+            created_at = timer_id.split("_")[-1] if "_" in timer_id else "unknown"
+            timer_info.append({
+                "timer_id": timer_id,
+                "active": timer.is_alive(),
+                "created_at": created_at,
+            })
+        return timer_info
     
-    def schedule_timed_message(self, message: str, duration_seconds: int,
-                             restore_slot: Optional[str] = None) -> str:
+    def schedule_timed_message(
+        self,
+        message: str,
+        duration_seconds: int,
+        restore_slot: Optional[str] = None,
+    ) -> str:
         """Schedule a timed message with optional auto-restore.
 
         Args:
@@ -368,74 +558,91 @@ class VestaboardMQTTBridge:
 
         # Schedule restoration
         def restore_previous():
-            self.logger.info(f"Timer {timer_id} expired, restoring from slot {restore_slot}")
+            """Restore callback executed after timer expires."""
+            self.logger.info(
+                f"Timer {timer_id} expired, restoring from slot {restore_slot}"
+            )
 
-            # For Cloud API, ensure we respect the rate limit before restoring
-            # Check if we need to wait for rate limit to clear
-            if hasattr(self.vestaboard_client, 'RATE_LIMIT_SECONDS'):
-                rate_limit = self.vestaboard_client.RATE_LIMIT_SECONDS
-                time_since_write = time.time() - write_time
-                remaining_wait = rate_limit - time_since_write
-
-                if remaining_wait > 0:
-                    self.logger.info(f"Waiting {remaining_wait:.1f}s for Cloud API rate limit before restore")
-                    time.sleep(remaining_wait + 0.5)  # Add 0.5s buffer
+            # Respect rate limits before restoring
+            self._wait_for_rate_limit(write_time)
 
             self._restore_from_slot(restore_slot)
+
             # Clean up timer tracking
-            if timer_id in self.active_timers:
-                del self.active_timers[timer_id]
+            self.active_timers.pop(timer_id, None)
 
         timer = threading.Timer(duration_seconds, restore_previous)
         self.active_timers[timer_id] = timer
         timer.start()
 
-        self.logger.info(f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})")
+        self.logger.info(
+            f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})"
+        )
         return timer_id
-    
-    
-    
+
+    def _wait_for_rate_limit(self, write_time: float) -> None:
+        """Wait for rate limit to clear if necessary.
+
+        Args:
+            write_time: Timestamp of the last write operation
+        """
+        if not hasattr(self.vestaboard_client, "RATE_LIMIT_SECONDS"):
+            return
+
+        rate_limit = self.vestaboard_client.RATE_LIMIT_SECONDS
+        time_since_write = time.time() - write_time
+        remaining_wait = rate_limit - time_since_write
+
+        if remaining_wait > 0:
+            self.logger.info(
+                f"Waiting {remaining_wait:.1f}s for Cloud API rate limit before restore"
+            )
+            time.sleep(remaining_wait + 0.5)  # Add 0.5s buffer
+
     def cancel_timed_message(self, timer_id: str) -> bool:
         """Cancel a scheduled timed message.
-        
+
         Args:
             timer_id: ID of timer to cancel
-            
+
         Returns:
             True if cancelled, False if not found
         """
-        if timer_id in self.active_timers:
-            self.active_timers[timer_id].cancel()
-            del self.active_timers[timer_id]
+        timer = self.active_timers.pop(timer_id, None)
+        if timer is not None:
+            timer.cancel()
             self.logger.info(f"Cancelled timer {timer_id}")
             return True
         return False
-    
-    def start(self):
+
+    def start(self) -> None:
         """Start the MQTT bridge."""
         try:
-            self.logger.info(f"Connecting to MQTT broker at {self.mqtt_config.host}:{self.mqtt_config.port} "
-                           f"with topic prefix '{self.topic_prefix}'")
+            self.logger.info(
+                f"Connecting to MQTT broker at {self.config.mqtt.host}:"
+                f"{self.config.mqtt.port} with topic prefix '{self.topic_prefix}'"
+            )
             self.mqtt_client.connect(
-                self.mqtt_config.host,
-                self.mqtt_config.port,
-                self.mqtt_config.keepalive
+                self.config.mqtt.host,
+                self.config.mqtt.port,
+                self.config.mqtt.keepalive,
             )
             self.mqtt_client.loop_forever()
         except KeyboardInterrupt:
             self.logger.info("Shutting down MQTT bridge...")
             self.stop()
         except Exception as e:
-            self.logger.error(f"Error starting MQTT bridge: {e}")
-    
-    def stop(self):
+            self.logger.error(f"Error starting MQTT bridge: {e}", exc_info=True)
+            raise
+
+    def stop(self) -> None:
         """Stop the MQTT bridge and clean up."""
         # Cancel all active timers
-        for timer_id, timer in self.active_timers.items():
+        for timer_id, timer in list(self.active_timers.items()):
             timer.cancel()
             self.logger.debug(f"Cancelled timer {timer_id}")
         self.active_timers.clear()
-        
+
         # Disconnect from MQTT
         self.mqtt_client.disconnect()
         self.mqtt_client.loop_stop()
