@@ -139,6 +139,47 @@ Configure unique topic prefixes per instance using `MQTT_TOPIC_PREFIX` to contro
 - Minimal inline comments (only for complex logic)
 - Code formatting: Black, isort, Flake8, Mypy, Pylint
 
+### Comment Style Guidelines
+
+**DO NOT add obvious inline comments.** Code should be self-documenting through clear naming and structure.
+
+**❌ Bad (obvious comments):**
+```python
+# Parse log level
+log_level = getattr(logging, config.log_level.upper(), logging.INFO)
+
+# Create client
+client = VestaboardClient(api_key=api_key)
+
+# Check if connected
+if mqtt_client.is_connected():
+```
+
+**✅ Good (comments explain WHY or non-obvious logic):**
+```python
+# Remove existing handlers to avoid duplicates on reconfiguration
+root_logger.handlers.clear()
+
+# Local API returns different format than Cloud API - normalize to match
+if isinstance(layout, dict) and "message" in layout:
+    layout = layout["message"]
+
+# Simple centering algorithm - for complex layouts use Vestaboard's service
+start_col = max(0, (board_type.cols - len(text_upper)) // 2)
+```
+
+**When to use inline comments:**
+- Explaining WHY something is done (not WHAT is being done)
+- Clarifying non-obvious business logic or API quirks
+- Documenting design decisions or trade-offs
+- Warning about edge cases or gotchas
+
+**Prefer these over inline comments:**
+- Clear function/variable names
+- Extracting code into well-named functions
+- Comprehensive docstrings
+- Type hints
+
 ### Testing
 - 200+ tests across 8 test files
 - Unit tests for individual components
