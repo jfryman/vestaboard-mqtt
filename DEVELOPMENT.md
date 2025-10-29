@@ -16,6 +16,44 @@ make format
 make test-all
 ```
 
+## Quick Reference
+
+### Daily Development Workflow
+
+```bash
+# 1. Make changes to code
+vim src/mqtt/bridge.py
+
+# 2. Run fast checks (5-10 seconds)
+make check-quick
+
+# 3. Fix any issues automatically
+make format
+
+# 4. Before committing, run everything
+make test-all
+```
+
+### Common Commands
+
+| Command | Duration | Use when |
+|---------|----------|----------|
+| `make check-quick` | 5-10s | During active development |
+| `make format` | 2-3s | Auto-fix formatting |
+| `make lint` | 15-20s | Before committing |
+| `make test` | 1-2s | Testing code changes |
+| `make test-all` | 20-25s | Before pushing |
+
+### What Each Tool Does
+
+| Tool | What it checks | Auto-fixable |
+|------|----------------|--------------|
+| **Black** | Code formatting | ✅ Yes (`make format`) |
+| **isort** | Import order | ✅ Yes (`make format`) |
+| **Flake8** | PEP 8 style, unused imports | ❌ Manual fixes |
+| **Mypy** | Type hints, type safety | ❌ Manual fixes |
+| **Pylint** | Code quality, bugs, complexity | ❌ Manual fixes |
+
 ## Available Commands
 
 ### Make Commands
