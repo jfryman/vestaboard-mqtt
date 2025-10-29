@@ -122,6 +122,9 @@ vestaboard:
   #   - Custom dimensions as "rows,cols" (e.g., "3,15")
   boardType: "standard"
 
+  # Maximum message queue size (default: 10)
+  maxQueueSize: "10"
+
   # Local API configuration (only used when useLocalApi is true)
   localApi:
     host: "vestaboard.local"
