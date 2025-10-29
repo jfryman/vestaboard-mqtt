@@ -15,7 +15,7 @@ class VestaboardClient(BaseVestaboardClient, RateLimitMixin):
     """Client for interacting with the Vestaboard Cloud Read/Write API."""
 
     BASE_URL = "https://rw.vestaboard.com/"
-    RATE_LIMIT_SECONDS = 15  # Cloud API rate limit
+    RATE_LIMIT_SECONDS = 30  # Cloud API rate limit
 
     def __init__(
         self,
