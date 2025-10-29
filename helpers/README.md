@@ -2,6 +2,9 @@
 
 This directory contains helper scripts and tools for testing the Vestaboard MQTT Bridge functionality.
 
+**For complete MQTT topic documentation, see [INTERFACE_SPEC.md](../INTERFACE_SPEC.md).**
+**For complete testing documentation, see [tests/README.md](../tests/README.md).**
+
 ## 🧪 Test Scripts
 
 ### 1. Python Interactive Tester (`test_messages.py`)
@@ -138,3 +141,9 @@ The interactive tester includes preset messages for quick testing:
 - Timer IDs are based on timestamps: `timer_1703123456`
 - Response topics can be customized for each operation
 - All scripts support custom MQTT broker configurations
+
+## Additional Documentation
+
+- **MQTT Topics:** See [INTERFACE_SPEC.md](../INTERFACE_SPEC.md#mqtt-interface) for complete topic reference
+- **Environment Variables:** See [README.md](../README.md#configuration) for configuration
+- **Test Suite:** See [tests/README.md](../tests/README.md) for automated testing

@@ -37,7 +37,6 @@ class VestaboardHTTPAPI:
         @self.app.get("/ready")
         async def readiness_check():
             """Readiness check endpoint for Kubernetes readiness probe."""
-            # Check if MQTT client is connected
             mqtt_connected = self.mqtt_bridge.mqtt_client.is_connected()
 
             if mqtt_connected:
