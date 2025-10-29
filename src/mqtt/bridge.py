@@ -3,7 +3,7 @@
 import json
 import logging
 import ssl
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import paho.mqtt.client as mqtt
 
@@ -12,20 +12,20 @@ from .timers import TimerManager
 from .topics import Topics
 
 if TYPE_CHECKING:
-    from ..config import AppConfig, TLSConfig, LWTConfig
+    from ..config import AppConfig, LWTConfig, TLSConfig
 
 
 class VestaboardMQTTBridge:
     """MQTT bridge for Vestaboard with save/restore functionality."""
 
-    def __init__(self, config: 'AppConfig'):
+    def __init__(self, config: "AppConfig"):
         """Initialize the MQTT bridge.
 
         Args:
             config: Application configuration object (use AppConfig.from_env())
         """
-        from ..vestaboard import create_vestaboard_client
         from ..state import SaveStateManager
+        from ..vestaboard import create_vestaboard_client
 
         self.config = config
         self.topic_prefix = config.mqtt.topic_prefix.rstrip("/")
@@ -33,8 +33,7 @@ class VestaboardMQTTBridge:
 
         # Initialize Vestaboard client
         self.vestaboard_client = create_vestaboard_client(
-            api_key=config.vestaboard.api_key,
-            max_queue_size=config.effective_max_queue_size
+            api_key=config.vestaboard.api_key, max_queue_size=config.effective_max_queue_size
         )
 
         # Initialize MQTT client
@@ -42,16 +41,12 @@ class VestaboardMQTTBridge:
 
         # Initialize save state manager
         self.save_state_manager = SaveStateManager(
-            self.mqtt_client,
-            self.vestaboard_client,
-            self.topic_prefix
+            self.mqtt_client, self.vestaboard_client, self.topic_prefix
         )
 
         # Initialize timer manager
         self.timer_manager = TimerManager(
-            self.vestaboard_client,
-            self.save_state_manager,
-            self.restore_from_slot
+            self.vestaboard_client, self.save_state_manager, self.restore_from_slot
         )
 
         # Initialize message handlers
@@ -64,8 +59,7 @@ class VestaboardMQTTBridge:
             Configured MQTT client instance
         """
         client = mqtt.Client(
-            client_id=self.config.mqtt.client_id or "",
-            clean_session=self.config.mqtt.clean_session
+            client_id=self.config.mqtt.client_id or "", clean_session=self.config.mqtt.clean_session
         )
 
         # Set up callbacks
@@ -75,10 +69,7 @@ class VestaboardMQTTBridge:
 
         # Configure authentication
         if self.config.mqtt.username and self.config.mqtt.password:
-            client.username_pw_set(
-                self.config.mqtt.username,
-                self.config.mqtt.password
-            )
+            client.username_pw_set(self.config.mqtt.username, self.config.mqtt.password)
 
         # Configure TLS/SSL
         if self.config.mqtt.tls:
@@ -90,7 +81,7 @@ class VestaboardMQTTBridge:
 
         return client
 
-    def _configure_tls(self, client: mqtt.Client, tls_config: 'TLSConfig') -> None:
+    def _configure_tls(self, client: mqtt.Client, tls_config: "TLSConfig") -> None:
         """Configure TLS/SSL for MQTT connection.
 
         Args:
@@ -107,20 +98,18 @@ class VestaboardMQTTBridge:
                 keyfile=tls_config.keyfile,
                 cert_reqs=ssl.CERT_REQUIRED,
                 tls_version=ssl.PROTOCOL_TLS,
-                ciphers=None
+                ciphers=None,
             )
             self.logger.info("TLS/SSL configured successfully")
 
             if tls_config.insecure:
                 client.tls_insecure_set(True)
-                self.logger.warning(
-                    "TLS certificate verification DISABLED - insecure mode active"
-                )
+                self.logger.warning("TLS certificate verification DISABLED - insecure mode active")
         except Exception as e:
             self.logger.error(f"Failed to configure TLS/SSL: {e}")
             raise
 
-    def _configure_lwt(self, client: mqtt.Client, lwt_config: 'LWTConfig') -> None:
+    def _configure_lwt(self, client: mqtt.Client, lwt_config: "LWTConfig") -> None:
         """Configure Last Will and Testament for MQTT connection.
 
         Args:
@@ -131,12 +120,7 @@ class VestaboardMQTTBridge:
             Exception: If LWT configuration fails
         """
         try:
-            client.will_set(
-                lwt_config.topic,
-                lwt_config.payload,
-                lwt_config.qos,
-                lwt_config.retain
-            )
+            client.will_set(lwt_config.topic, lwt_config.payload, lwt_config.qos, lwt_config.retain)
             self.logger.info(f"Last Will and Testament configured: {lwt_config.topic}")
         except Exception as e:
             self.logger.error(f"Failed to configure LWT: {e}")
@@ -238,7 +222,7 @@ class VestaboardMQTTBridge:
         if not topic.startswith(prefix_with_slash):
             self.logger.warning(f"Received message on unexpected topic: {topic}")
             return None
-        return topic[len(prefix_with_slash):]
+        return topic[len(prefix_with_slash) :]
 
     def _route_message(self, suffix: str, payload: str) -> None:
         """Route message to appropriate handler based on topic suffix.
@@ -305,9 +289,7 @@ class VestaboardMQTTBridge:
             except json.JSONDecodeError as e:
                 self.logger.error(f"Invalid save data for slot '{slot}': {e}")
             except Exception as e:
-                self.logger.error(
-                    f"Error restoring from slot '{slot}': {e}", exc_info=True
-                )
+                self.logger.error(f"Error restoring from slot '{slot}': {e}", exc_info=True)
             finally:
                 # Cleanup: unsubscribe and remove callback
                 client.unsubscribe(state_topic)

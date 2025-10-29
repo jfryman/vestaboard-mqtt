@@ -12,3 +12,8 @@ httpx<0.28,>=0.27  # For FastAPI TestClient compatibility
 black>=23.7.0
 flake8>=6.1.0
 mypy>=1.4.1
+isort>=5.12.0
+pylint>=3.0.0
+
+# Type stubs for mypy
+types-requests>=2.31.0

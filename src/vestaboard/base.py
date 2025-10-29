@@ -1,7 +1,8 @@
 """Base classes for Vestaboard clients."""
 
-import time
+import logging
 import threading
+import time
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Dict, List, Optional, Union
@@ -16,26 +17,38 @@ class BaseVestaboardClient(ABC):
     @abstractmethod
     def read_current_message(self) -> Optional[Dict]:
         """Read the current message from the Vestaboard."""
-        pass
+        ...
 
     @abstractmethod
     def write_message(self, message: Union[str, List[List[int]]]) -> bool:
         """Write a message to the Vestaboard."""
-        pass
+        ...
 
     @abstractmethod
     def get_current_layout(self) -> Optional[List[List[int]]]:
         """Get the current message layout as a 6x22 array."""
-        pass
+        ...
 
     @abstractmethod
     def cleanup(self):
         """Clean up any active timers and resources."""
-        pass
+        ...
 
 
 class RateLimitMixin:
-    """Mixin providing rate limiting and message queue functionality."""
+    """Mixin providing rate limiting and message queue functionality.
+
+    Classes using this mixin must provide:
+    - logger: logging.Logger instance
+    - _send_message_direct: method to send messages
+    """
+
+    # Type hints for attributes that must be provided by the using class
+    logger: logging.Logger
+
+    def _send_message_direct(self, message: Union[str, List[List[int]]]) -> bool:
+        """Send a message directly (must be implemented by using class)."""
+        raise NotImplementedError("_send_message_direct must be implemented by the using class")
 
     def __init__(self, rate_limit_seconds: float, max_queue_size: int):
         """Initialize rate limiting.
@@ -46,7 +59,7 @@ class RateLimitMixin:
         """
         self.rate_limit_seconds = rate_limit_seconds
         self.last_send_time = 0.0
-        self.message_queue = deque(maxlen=max_queue_size)
+        self.message_queue: deque = deque(maxlen=max_queue_size)
         self.queue_lock = threading.RLock()
         self.processing_queue = False
         self.queue_timer: Optional[threading.Timer] = None
@@ -74,7 +87,9 @@ class RateLimitMixin:
                 self.message_queue.append(message)
                 queue_len = len(self.message_queue)
                 log_suffix = format_log_suffix(self._api_label)
-                self.logger.info(f"Message queued due to rate limit (queue size: {queue_len}){log_suffix}")
+                self.logger.info(
+                    f"Message queued due to rate limit (queue size: {queue_len}){log_suffix}"
+                )
 
                 if not self.processing_queue:
                     self._schedule_queue_processing()
@@ -96,10 +111,7 @@ class RateLimitMixin:
                 time_until_next_send = QUEUE_PROCESSING_DELAY
 
             self.processing_queue = True
-            self.queue_timer = threading.Timer(
-                time_until_next_send,
-                self._process_queue
-            )
+            self.queue_timer = threading.Timer(time_until_next_send, self._process_queue)
             self.queue_timer.start()
 
             log_suffix = format_log_suffix(self._api_label)

@@ -16,21 +16,16 @@ __all__ = [
     # Base classes
     "BaseVestaboardClient",
     "RateLimitMixin",
-
     # Board types
     "BoardType",
-
     # Client implementations
     "VestaboardClient",
     "LocalVestaboardClient",
-
     # Factory
     "create_vestaboard_client",
-
     # Constants
     "CHAR_CODE_MAP",
     "TEXT_TO_CODE_MAP",
-
     # Utilities
     "debug_layout_preview",
     "text_to_layout",

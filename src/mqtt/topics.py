@@ -3,6 +3,7 @@
 
 class Topics:
     """MQTT topic suffixes."""
+
     MESSAGE = "message"
     SAVE = "save/+"
     RESTORE = "restore/+"

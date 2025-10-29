@@ -1,12 +1,13 @@
 """Pytest configuration and fixtures for Vestaboard MQTT tests."""
 
 import pytest
-from src.config import AppConfig, VestaboardConfig, MQTTConfig, TLSConfig, LWTConfig
 
+from src.config import AppConfig, LWTConfig, MQTTConfig, TLSConfig, VestaboardConfig
 
 # ============================================================================
 # Helper Functions for Creating Test Configurations
 # ============================================================================
+
 
 def create_test_vestaboard_config(
     api_key: str = "test_api_key",
@@ -15,7 +16,7 @@ def create_test_vestaboard_config(
     local_host: str = "vestaboard.local",
     local_port: int = 7000,
     board_type: str = "standard",
-    max_queue_size: int = 10
+    max_queue_size: int = 10,
 ) -> VestaboardConfig:
     """Create a VestaboardConfig for testing with sensible defaults.
 
@@ -38,7 +39,7 @@ def create_test_vestaboard_config(
         local_host=local_host,
         local_port=local_port,
         board_type=board_type,
-        max_queue_size=max_queue_size
+        max_queue_size=max_queue_size,
     )
 
 
@@ -53,7 +54,7 @@ def create_test_mqtt_config(
     keepalive: int = 60,
     qos: int = 0,
     tls: TLSConfig = None,
-    lwt: LWTConfig = None
+    lwt: LWTConfig = None,
 ) -> MQTTConfig:
     """Create an MQTTConfig for testing with sensible defaults.
 
@@ -84,7 +85,7 @@ def create_test_mqtt_config(
         keepalive=keepalive,
         qos=qos,
         tls=tls,
-        lwt=lwt
+        lwt=lwt,
     )
 
 
@@ -94,7 +95,7 @@ def create_test_app_config(
     mqtt_config: MQTTConfig = None,
     http_port: int = 8000,
     max_queue_size: int = 10,
-    **vestaboard_kwargs
+    **vestaboard_kwargs,
 ) -> AppConfig:
     """Create an AppConfig for testing with sensible defaults.
 
@@ -132,9 +133,7 @@ def create_test_app_config(
     # Build vestaboard config if not provided
     if vestaboard_config is None:
         vestaboard_config = create_test_vestaboard_config(
-            api_key=vestaboard_api_key,
-            max_queue_size=max_queue_size,
-            **vestaboard_kwargs
+            api_key=vestaboard_api_key, max_queue_size=max_queue_size, **vestaboard_kwargs
         )
 
     # Build MQTT config if not provided
@@ -145,15 +144,13 @@ def create_test_app_config(
         vestaboard=vestaboard_config,
         mqtt=mqtt_config,
         http_port=http_port,
-        max_queue_size=max_queue_size
+        max_queue_size=max_queue_size,
     )
 
 
 # Backward compatibility alias (for existing tests using old name)
 def create_test_config(
-    api_key: str = "test_key",
-    topic_prefix: str = "vestaboard",
-    **mqtt_kwargs
+    api_key: str = "test_key", topic_prefix: str = "vestaboard", **mqtt_kwargs
 ) -> AppConfig:
     """Helper function to create test AppConfig with custom settings.
 
@@ -168,19 +165,14 @@ def create_test_config(
     Returns:
         AppConfig instance for testing
     """
-    mqtt_config = create_test_mqtt_config(
-        topic_prefix=topic_prefix,
-        **mqtt_kwargs
-    )
-    return create_test_app_config(
-        vestaboard_api_key=api_key,
-        mqtt_config=mqtt_config
-    )
+    mqtt_config = create_test_mqtt_config(topic_prefix=topic_prefix, **mqtt_kwargs)
+    return create_test_app_config(vestaboard_api_key=api_key, mqtt_config=mqtt_config)
 
 
 # ============================================================================
 # Pytest Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def test_vestaboard_config():
@@ -203,10 +195,7 @@ def test_app_config():
 @pytest.fixture
 def test_app_config_with_local_api():
     """Fixture providing an AppConfig configured for Local API."""
-    return create_test_app_config(
-        local_api_key="test_local_key",
-        use_local_api=True
-    )
+    return create_test_app_config(local_api_key="test_local_key", use_local_api=True)
 
 
 @pytest.fixture

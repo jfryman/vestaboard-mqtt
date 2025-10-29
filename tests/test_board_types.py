@@ -1,14 +1,16 @@
 """Tests for board type functionality and utilities."""
 
+import logging
+
 import pytest
+
 from src.vestaboard import (
-    BoardType,
-    text_to_layout,
-    debug_layout_preview,
     CHAR_CODE_MAP,
     TEXT_TO_CODE_MAP,
+    BoardType,
+    debug_layout_preview,
+    text_to_layout,
 )
-import logging
 
 
 class TestBoardTypeConstants:
@@ -38,33 +40,33 @@ class TestCharacterMaps:
 
     def test_char_code_map_has_blank(self):
         """Test that code 0 maps to blank space."""
-        assert CHAR_CODE_MAP[0] == ' '
+        assert CHAR_CODE_MAP[0] == " "
 
     def test_char_code_map_has_letters(self):
         """Test that codes 1-26 map to A-Z."""
-        assert CHAR_CODE_MAP[1] == 'A'
-        assert CHAR_CODE_MAP[26] == 'Z'
+        assert CHAR_CODE_MAP[1] == "A"
+        assert CHAR_CODE_MAP[26] == "Z"
 
     def test_char_code_map_has_numbers(self):
         """Test that codes 27-36 map to numbers (1-9, then 0)."""
-        assert CHAR_CODE_MAP[27] == '1'
-        assert CHAR_CODE_MAP[35] == '9'
-        assert CHAR_CODE_MAP[36] == '0'
+        assert CHAR_CODE_MAP[27] == "1"
+        assert CHAR_CODE_MAP[35] == "9"
+        assert CHAR_CODE_MAP[36] == "0"
 
     def test_char_code_map_has_special_chars(self):
         """Test special character mappings."""
-        assert CHAR_CODE_MAP[37] == '!'
-        assert CHAR_CODE_MAP[60] == '?'
+        assert CHAR_CODE_MAP[37] == "!"
+        assert CHAR_CODE_MAP[60] == "?"
         # Note: codes 63+ are colored blocks, not standard ASCII
 
     def test_text_to_code_map_inverse(self):
         """Test that TEXT_TO_CODE_MAP is inverse of relevant CHAR_CODE_MAP entries."""
-        assert TEXT_TO_CODE_MAP[' '] == 0
-        assert TEXT_TO_CODE_MAP['A'] == 1
-        assert TEXT_TO_CODE_MAP['Z'] == 26
-        assert TEXT_TO_CODE_MAP['1'] == 27
-        assert TEXT_TO_CODE_MAP['9'] == 35
-        assert TEXT_TO_CODE_MAP['0'] == 36
+        assert TEXT_TO_CODE_MAP[" "] == 0
+        assert TEXT_TO_CODE_MAP["A"] == 1
+        assert TEXT_TO_CODE_MAP["Z"] == 26
+        assert TEXT_TO_CODE_MAP["1"] == 27
+        assert TEXT_TO_CODE_MAP["9"] == 35
+        assert TEXT_TO_CODE_MAP["0"] == 36
 
 
 class TestTextToLayout:
@@ -94,7 +96,7 @@ class TestTextToLayout:
         layout = text_to_layout("hello", BoardType.STANDARD)
         # 'H' should be code 8 (1-based: H is 8th letter, so code 8)
         # Find the 'H' in the layout
-        h_code = TEXT_TO_CODE_MAP['H']
+        h_code = TEXT_TO_CODE_MAP["H"]
         assert h_code in layout[0]
 
     def test_text_truncated_to_width(self):
@@ -115,15 +117,15 @@ class TestTextToLayout:
         """Test that special characters are mapped to correct codes."""
         layout = text_to_layout("HELLO!", BoardType.STANDARD)
         # Exclamation mark should be code 37
-        assert TEXT_TO_CODE_MAP['!'] == 37
+        assert TEXT_TO_CODE_MAP["!"] == 37
         assert 37 in layout[0]
 
     def test_unsupported_characters_become_blank(self):
         """Test that unsupported characters become blank (code 0)."""
         layout = text_to_layout("A~B", BoardType.STANDARD)  # ~ is not supported
         # Should have A, blank, B
-        a_code = TEXT_TO_CODE_MAP['A']
-        b_code = TEXT_TO_CODE_MAP['B']
+        a_code = TEXT_TO_CODE_MAP["A"]
+        b_code = TEXT_TO_CODE_MAP["B"]
         first_row = layout[0]
         # Find positions of A and B
         a_pos = first_row.index(a_code) if a_code in first_row else -1
@@ -169,11 +171,14 @@ class TestDebugLayoutPreview:
         # Should handle 3x15 layout without errors
 
 
-@pytest.mark.parametrize("text,board_type,expected_rows,expected_cols", [
-    ("HELLO", BoardType.STANDARD, 6, 22),
-    ("HI", BoardType.NOTE, 3, 15),
-    ("", BoardType.STANDARD, 6, 22),
-])
+@pytest.mark.parametrize(
+    "text,board_type,expected_rows,expected_cols",
+    [
+        ("HELLO", BoardType.STANDARD, 6, 22),
+        ("HI", BoardType.NOTE, 3, 15),
+        ("", BoardType.STANDARD, 6, 22),
+    ],
+)
 def test_text_to_layout_parametrized(text, board_type, expected_rows, expected_cols):
     """Parametrized test for various board dimensions."""
     layout = text_to_layout(text, board_type)

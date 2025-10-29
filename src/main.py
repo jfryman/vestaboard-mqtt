@@ -2,11 +2,13 @@
 
 import logging
 import threading
+
 import uvicorn
+
 from .config import AppConfig
-from .mqtt import VestaboardMQTTBridge
 from .http_api import create_app
 from .logger import configure_logging
+from .mqtt import VestaboardMQTTBridge
 
 
 def main():
@@ -35,12 +37,7 @@ def main():
 
         # Start HTTP API server
         logger.info(f"Starting HTTP API server on port {config.http_port}")
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=config.http_port,
-            log_level="info"
-        )
+        uvicorn.run(app, host="0.0.0.0", port=config.http_port, log_level="info")
 
     except KeyboardInterrupt:
         logger.info("Shutting down...")

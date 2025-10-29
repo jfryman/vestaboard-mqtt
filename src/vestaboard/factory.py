@@ -1,7 +1,7 @@
 """Factory function for creating Vestaboard clients."""
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .base import BaseVestaboardClient
 from .board_types import BoardType
@@ -19,7 +19,7 @@ def create_vestaboard_client(
     local_host: str = "vestaboard.local",
     local_port: int = 7000,
     max_queue_size: int = 10,
-    config: Optional['VestaboardConfig'] = None
+    config: Optional["VestaboardConfig"] = None,
 ) -> BaseVestaboardClient:
     """Factory function to create appropriate Vestaboard client.
 
@@ -94,12 +94,10 @@ def create_vestaboard_client(
             board_type=board_type,
             host=local_host,
             port=local_port,
-            max_queue_size=max_queue_size
+            max_queue_size=max_queue_size,
         )
     else:
         logger.info("Creating Cloud API client")
         return VestaboardClient(
-            api_key=api_key,
-            board_type=board_type,
-            max_queue_size=max_queue_size
+            api_key=api_key, board_type=board_type, max_queue_size=max_queue_size
         )

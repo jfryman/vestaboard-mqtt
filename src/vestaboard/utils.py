@@ -1,8 +1,9 @@
 """Utility functions for Vestaboard client operations."""
 
 from typing import List
-from .constants import CHAR_CODE_MAP, TEXT_TO_CODE_MAP, DEFAULT_PREVIEW_ROWS
+
 from .board_types import BoardType
+from .constants import CHAR_CODE_MAP, DEFAULT_PREVIEW_ROWS, TEXT_TO_CODE_MAP
 
 
 def format_log_suffix(label: str) -> str:
@@ -18,9 +19,7 @@ def format_log_suffix(label: str) -> str:
 
 
 def debug_layout_preview(
-    layout: List[List[int]],
-    logger,
-    max_preview_rows: int = DEFAULT_PREVIEW_ROWS
+    layout: List[List[int]], logger, max_preview_rows: int = DEFAULT_PREVIEW_ROWS
 ) -> None:
     """Generate a readable preview of the layout array for debugging.
 
@@ -39,7 +38,7 @@ def debug_layout_preview(
 
         preview_lines = []
         for row_idx, row in enumerate(layout[:max_preview_rows]):
-            line = ''.join(CHAR_CODE_MAP.get(code, f'[{code}]') for code in row)
+            line = "".join(CHAR_CODE_MAP.get(code, f"[{code}]") for code in row)
             preview_lines.append(f"Row {row_idx + 1}: '{line.strip()}'")
 
         if rows > max_preview_rows:
@@ -81,7 +80,7 @@ def text_to_layout(text: str, board_type: BoardType) -> List[List[int]]:
     layout = [[0 for _ in range(board_type.cols)] for _ in range(board_type.rows)]
 
     # Simple centering on first row
-    text_upper = text.upper()[:board_type.cols]  # Truncate to fit width
+    text_upper = text.upper()[: board_type.cols]  # Truncate to fit width
     start_col = max(0, (board_type.cols - len(text_upper)) // 2)
 
     for i, char in enumerate(text_upper):

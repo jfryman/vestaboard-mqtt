@@ -3,17 +3,18 @@
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 import paho.mqtt.client as mqtt
 
 if TYPE_CHECKING:
-    from ..vestaboard import BaseVestaboardClient
     from ..config import AppConfig
+    from ..vestaboard import BaseVestaboardClient
 
 
 class SaveData(TypedDict):
     """Structure for saved Vestaboard state data."""
+
     layout: List[List[int]]
     saved_at: int
     original_id: str
@@ -30,8 +31,8 @@ class SaveStateManager:
     def __init__(
         self,
         mqtt_client: mqtt.Client,
-        vestaboard_client: 'BaseVestaboardClient',
-        topic_prefix: str = "vestaboard"
+        vestaboard_client: "BaseVestaboardClient",
+        topic_prefix: str = "vestaboard",
     ):
         """Initialize the save state manager.
 
@@ -87,7 +88,7 @@ class SaveStateManager:
         return {
             "layout": current_message["currentMessage"]["layout"],
             "saved_at": int(time.time()),
-            "original_id": current_message["currentMessage"]["id"]
+            "original_id": current_message["currentMessage"]["id"],
         }
 
     def save_current_state(self, slot: str) -> bool:

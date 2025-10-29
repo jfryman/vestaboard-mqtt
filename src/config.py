@@ -2,8 +2,9 @@
 
 import os
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TLSConfig(BaseModel):
@@ -15,7 +16,7 @@ class TLSConfig(BaseModel):
     keyfile: Optional[str] = Field(None, description="Path to client key file")
     insecure: bool = Field(False, description="Skip certificate verification (INSECURE)")
 
-    @field_validator('ca_certs', 'certfile', 'keyfile')
+    @field_validator("ca_certs", "certfile", "keyfile")
     @classmethod
     def validate_cert_paths(cls, v: Optional[str]) -> Optional[str]:
         """Validate that certificate paths exist if provided."""
@@ -23,8 +24,8 @@ class TLSConfig(BaseModel):
             raise ValueError(f"Certificate file not found: {v}")
         return v
 
-    @model_validator(mode='after')
-    def validate_tls_config(self) -> 'TLSConfig':
+    @model_validator(mode="after")
+    def validate_tls_config(self) -> "TLSConfig":
         """Validate TLS configuration consistency."""
         if self.enabled and not self.ca_certs:
             raise ValueError("ca_certs is required when TLS is enabled")
@@ -74,7 +75,7 @@ class VestaboardConfig(BaseModel):
     board_type: str = Field("standard", description="Board type: 'standard' or 'note'")
     max_queue_size: int = Field(10, ge=1, description="Maximum message queue size")
 
-    @field_validator('board_type')
+    @field_validator("board_type")
     @classmethod
     def validate_board_type(cls, v: str) -> str:
         """Validate board type is 'standard' or 'note'."""
@@ -85,8 +86,8 @@ class VestaboardConfig(BaseModel):
 
         raise ValueError(f"Unknown board_type: '{v}'. Valid options: 'standard' or 'note'")
 
-    @model_validator(mode='after')
-    def validate_api_key(self) -> 'VestaboardConfig':
+    @model_validator(mode="after")
+    def validate_api_key(self) -> "VestaboardConfig":
         """Validate that at least one API key is provided."""
         if not self.api_key and not self.local_api_key:
             raise ValueError("Either api_key or local_api_key must be provided")
@@ -99,19 +100,25 @@ class AppConfig(BaseModel):
     vestaboard: VestaboardConfig = Field(..., description="Vestaboard configuration")
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig, description="MQTT configuration")
     http_port: int = Field(8000, ge=1, le=65535, description="HTTP API port")
-    log_level: str = Field("INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+    log_level: str = Field(
+        "INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+    )
 
     # Deprecated - kept for backward compatibility, use vestaboard.max_queue_size instead
-    max_queue_size: Optional[int] = Field(None, ge=1, description="Maximum message queue size (deprecated)")
+    max_queue_size: Optional[int] = Field(
+        None, ge=1, description="Maximum message queue size (deprecated)"
+    )
 
-    @field_validator('log_level')
+    @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
         """Validate log level is a valid Python logging level."""
-        valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         v_upper = v.upper().strip()
         if v_upper not in valid_levels:
-            raise ValueError(f"Invalid log_level: '{v}'. Valid options: {', '.join(sorted(valid_levels))}")
+            raise ValueError(
+                f"Invalid log_level: '{v}'. Valid options: {', '.join(sorted(valid_levels))}"
+            )
         return v_upper
 
     @property
@@ -120,7 +127,7 @@ class AppConfig(BaseModel):
         return self.max_queue_size or self.vestaboard.max_queue_size
 
     @classmethod
-    def from_env(cls) -> 'AppConfig':
+    def from_env(cls) -> "AppConfig":
         """Load configuration from environment variables."""
         load_dotenv()
 
@@ -128,7 +135,7 @@ class AppConfig(BaseModel):
         def parse_bool(value: Optional[str], default: bool = False) -> bool:
             if value is None:
                 return default
-            return value.lower() in ('true', '1', 'yes', 'on')
+            return value.lower() in ("true", "1", "yes", "on")
 
         # Build TLS configuration if enabled
         tls_config = None
@@ -138,7 +145,7 @@ class AppConfig(BaseModel):
                 ca_certs=os.getenv("MQTT_TLS_CA_CERTS"),
                 certfile=os.getenv("MQTT_TLS_CERTFILE"),
                 keyfile=os.getenv("MQTT_TLS_KEYFILE"),
-                insecure=parse_bool(os.getenv("MQTT_TLS_INSECURE"), False)
+                insecure=parse_bool(os.getenv("MQTT_TLS_INSECURE"), False),
             )
 
         # Build LWT configuration if topic is specified
@@ -149,7 +156,7 @@ class AppConfig(BaseModel):
                 topic=lwt_topic,
                 payload=os.getenv("MQTT_LWT_PAYLOAD", "offline"),
                 qos=int(os.getenv("MQTT_LWT_QOS", "0")),
-                retain=parse_bool(os.getenv("MQTT_LWT_RETAIN"), True)
+                retain=parse_bool(os.getenv("MQTT_LWT_RETAIN"), True),
             )
 
         # Build MQTT configuration
@@ -164,7 +171,7 @@ class AppConfig(BaseModel):
             keepalive=int(os.getenv("MQTT_KEEPALIVE", "60")),
             qos=int(os.getenv("MQTT_QOS", "0")),
             tls=tls_config,
-            lwt=lwt_config
+            lwt=lwt_config,
         )
 
         # Build Vestaboard configuration
@@ -175,7 +182,7 @@ class AppConfig(BaseModel):
             local_host=os.getenv("VESTABOARD_LOCAL_HOST", "vestaboard.local"),
             local_port=int(os.getenv("VESTABOARD_LOCAL_PORT", "7000")),
             board_type=os.getenv("VESTABOARD_BOARD_TYPE", "standard"),
-            max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10"))
+            max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10")),
         )
 
         # Build main application configuration
@@ -184,5 +191,5 @@ class AppConfig(BaseModel):
             mqtt=mqtt_config,
             http_port=int(os.getenv("HTTP_PORT", "8000")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
-            max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10"))
+            max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10")),
         )

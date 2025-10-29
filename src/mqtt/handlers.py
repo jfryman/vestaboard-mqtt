@@ -3,19 +3,20 @@
 import json
 import logging
 import time
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from .topics import Topics
 
 if TYPE_CHECKING:
     import paho.mqtt.client as mqtt
+
     from .bridge import VestaboardMQTTBridge
 
 
 class MessageHandlers:
     """Handles incoming MQTT messages for Vestaboard bridge."""
 
-    def __init__(self, bridge: 'VestaboardMQTTBridge'):
+    def __init__(self, bridge: "VestaboardMQTTBridge"):
         """Initialize message handlers.
 
         Args:

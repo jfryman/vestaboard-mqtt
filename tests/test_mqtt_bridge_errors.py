@@ -1,18 +1,20 @@
 """Tests for MQTT bridge error handling and edge cases."""
 
 import json
+from unittest.mock import MagicMock, Mock, call, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, call
+
+from src.config import AppConfig, MQTTConfig
 from src.mqtt import VestaboardMQTTBridge
-from src.config import MQTTConfig, AppConfig
 from tests.conftest import create_test_app_config
 
 
 class TestMQTTConnectionErrors:
     """Test MQTT connection error handling."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_mqtt_connection_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of MQTT connection failures."""
         mock_create_client.return_value = Mock()
@@ -32,8 +34,8 @@ class TestMQTTConnectionErrors:
         except Exception:
             pass  # Expected to be caught and logged
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_mqtt_disconnect_handling(self, mock_create_client, mock_mqtt_client):
         """Test MQTT disconnect callback."""
         mock_create_client.return_value = Mock()
@@ -52,8 +54,8 @@ class TestMQTTConnectionErrors:
 class TestTimedMessageEdgeCases:
     """Test timed message edge cases."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_timed_message_missing_fields(self, mock_create_client, mock_mqtt_client):
         """Test timed message with missing required fields."""
         mock_vestaboard = Mock()
@@ -69,13 +71,13 @@ class TestTimedMessageEdgeCases:
         payload = json.dumps({"message": "Test"})
         msg = Mock()
         msg.payload = payload.encode()
-        msg.topic ="vestaboard/timed-message"
+        msg.topic = "vestaboard/timed-message"
 
         bridge.handlers.handle_timed_message(msg)
         # Should handle gracefully without crashing
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_timed_message_invalid_json(self, mock_create_client, mock_mqtt_client):
         """Test timed message with invalid JSON."""
         mock_vestaboard = Mock()
@@ -89,13 +91,13 @@ class TestTimedMessageEdgeCases:
 
         msg = Mock()
         msg.payload = b"not valid json"
-        msg.topic ="vestaboard/timed-message"
+        msg.topic = "vestaboard/timed-message"
 
         bridge.handlers.handle_timed_message(msg)
         # Should handle gracefully without crashing
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_cancel_nonexistent_timer(self, mock_create_client, mock_mqtt_client):
         """Test canceling a timer that doesn't exist."""
         mock_vestaboard = Mock()
@@ -109,7 +111,7 @@ class TestTimedMessageEdgeCases:
 
         msg = Mock()
         msg.payload = b"nonexistent_timer_id"
-        msg.topic ="vestaboard/cancel-timer/nonexistent_timer_id"
+        msg.topic = "vestaboard/cancel-timer/nonexistent_timer_id"
 
         bridge.handlers.handle_cancel_timer(msg)
         # Should handle gracefully without crashing
@@ -118,8 +120,8 @@ class TestTimedMessageEdgeCases:
 class TestMessageHandlingEdgeCases:
     """Test message handling edge cases."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_write_message_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of vestaboard write failures."""
         mock_vestaboard = Mock()
@@ -134,14 +136,14 @@ class TestMessageHandlingEdgeCases:
 
         msg = Mock()
         msg.payload = b"Test message"
-        msg.topic ="vestaboard/message"
+        msg.topic = "vestaboard/message"
 
         bridge._on_message(mock_client_instance, None, msg)
         # Should handle failure gracefully
         assert mock_vestaboard.write_message.called
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_message_with_json_array(self, mock_create_client, mock_mqtt_client):
         """Test message with JSON array payload."""
         mock_vestaboard = Mock()
@@ -158,14 +160,14 @@ class TestMessageHandlingEdgeCases:
         layout = [[0] * 22 for _ in range(6)]
         msg = Mock()
         msg.payload = json.dumps(layout).encode()
-        msg.topic ="vestaboard/message"
+        msg.topic = "vestaboard/message"
 
         bridge._on_message(mock_client_instance, None, msg)
         # Should parse as JSON and send
         mock_vestaboard.write_message.assert_called_with(layout)
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_message_invalid_json_treated_as_text(self, mock_create_client, mock_mqtt_client):
         """Test that invalid JSON is treated as text message."""
         mock_vestaboard = Mock()
@@ -180,7 +182,7 @@ class TestMessageHandlingEdgeCases:
 
         msg = Mock()
         msg.payload = b"{not valid json"
-        msg.topic ="vestaboard/message"
+        msg.topic = "vestaboard/message"
 
         bridge._on_message(mock_client_instance, None, msg)
         # Should send as text
@@ -190,8 +192,8 @@ class TestMessageHandlingEdgeCases:
 class TestRestoreFromSlot:
     """Test restore from slot functionality."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_restore_from_slot_sets_up_callback(self, mock_create_client, mock_mqtt_client):
         """Test that restore from slot sets up MQTT callback."""
         mock_vestaboard = Mock()
@@ -214,8 +216,8 @@ class TestRestoreFromSlot:
 class TestSaveAndDeleteSlots:
     """Test save and delete slot functionality."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_save_current_state_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of save state failures."""
         mock_vestaboard = Mock()
@@ -231,13 +233,13 @@ class TestSaveAndDeleteSlots:
 
         msg = Mock()
         msg.payload = b""
-        msg.topic ="vestaboard/save/test_slot"
+        msg.topic = "vestaboard/save/test_slot"
 
         bridge._on_message(mock_client_instance, None, msg)
         # Should handle failure gracefully
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_delete_slot(self, mock_create_client, mock_mqtt_client):
         """Test deleting a saved slot."""
         mock_vestaboard = Mock()
@@ -259,8 +261,8 @@ class TestSaveAndDeleteSlots:
 class TestListTimers:
     """Test list timers functionality."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_list_timers_empty(self, mock_create_client, mock_mqtt_client):
         """Test listing timers when none are active."""
         mock_vestaboard = Mock()
@@ -278,11 +280,11 @@ class TestListTimers:
         assert mock_client_instance.publish.called
         # Verify payload contains empty list
         call_args = mock_client_instance.publish.call_args
-        payload = call_args[0][1] if len(call_args[0]) > 1 else call_args.kwargs['payload']
-        assert '[]' in payload or payload == '[]'
+        payload = call_args[0][1] if len(call_args[0]) > 1 else call_args.kwargs["payload"]
+        assert "[]" in payload or payload == "[]"
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_list_timers_with_active_timers(self, mock_create_client, mock_mqtt_client):
         """Test listing timers when some are active."""
         mock_vestaboard = Mock()
@@ -308,15 +310,15 @@ class TestListTimers:
         if len(call_args[0]) > 1:
             payload = str(call_args[0][1])
         else:
-            payload = str(call_args.kwargs.get('payload', ''))
-        assert 'timer_123' in payload
+            payload = str(call_args.kwargs.get("payload", ""))
+        assert "timer_123" in payload
 
 
 class TestTimerCancellation:
     """Test timer cancellation functionality."""
 
-    @patch('src.mqtt.bridge.mqtt.Client')
-    @patch('src.vestaboard.create_vestaboard_client')
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
     def test_cancel_timer_success(self, mock_create_client, mock_mqtt_client):
         """Test successful timer cancellation."""
         mock_vestaboard = Mock()

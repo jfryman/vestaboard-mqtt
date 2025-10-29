@@ -7,7 +7,7 @@ class BoardType(Enum):
     """Vestaboard board type with dimensions."""
 
     STANDARD = ("standard", 6, 22)  # Standard Vestaboard (6 rows x 22 columns)
-    NOTE = ("note", 3, 15)           # Vestaboard Note (3 rows x 15 columns)
+    NOTE = ("note", 3, 15)  # Vestaboard Note (3 rows x 15 columns)
 
     def __init__(self, name: str, rows: int, cols: int):
         self._type_name = name
@@ -30,7 +30,7 @@ class BoardType(Enum):
         return self._type_name
 
     @classmethod
-    def from_string(cls, value: str) -> 'BoardType':
+    def from_string(cls, value: str) -> "BoardType":
         """Parse board type from string.
 
         Args:

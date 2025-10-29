@@ -1,15 +1,17 @@
 """Tests for Vestaboard client initialization and board type configuration."""
 
 import os
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
 import requests
-from unittest.mock import Mock, patch, MagicMock
+
 from src.vestaboard import (
-    BoardType,
-    VestaboardClient,
-    LocalVestaboardClient,
-    create_vestaboard_client,
     BaseVestaboardClient,
+    BoardType,
+    LocalVestaboardClient,
+    VestaboardClient,
+    create_vestaboard_client,
 )
 
 
@@ -76,11 +78,7 @@ class TestLocalVestaboardClientInitialization:
 
     def test_local_client_custom_host_and_port(self):
         """Test Local client with custom host and port."""
-        client = LocalVestaboardClient(
-            api_key="test_key",
-            host="192.168.1.100",
-            port=8080
-        )
+        client = LocalVestaboardClient(api_key="test_key", host="192.168.1.100", port=8080)
         assert client.host == "192.168.1.100"
         assert client.port == 8080
 
@@ -92,11 +90,7 @@ class TestLocalVestaboardClientInitialization:
 
     def test_local_client_base_url_format(self):
         """Test that Local client constructs base_url correctly."""
-        client = LocalVestaboardClient(
-            api_key="test_key",
-            host="192.168.1.100",
-            port=7000
-        )
+        client = LocalVestaboardClient(api_key="test_key", host="192.168.1.100", port=7000)
         assert client.base_url == "http://192.168.1.100:7000/local-api/message"
 
 
@@ -117,9 +111,7 @@ class TestFactoryFunction:
     def test_factory_passes_board_type_to_cloud_client(self):
         """Test factory passes board_type to Cloud client."""
         client = create_vestaboard_client(
-            api_key="test_key",
-            board_type=BoardType.NOTE,
-            use_local_api=False
+            api_key="test_key", board_type=BoardType.NOTE, use_local_api=False
         )
         assert client.board_rows == 3
         assert client.board_cols == 15
@@ -127,9 +119,7 @@ class TestFactoryFunction:
     def test_factory_passes_board_type_to_local_client(self):
         """Test factory passes board_type to Local client."""
         client = create_vestaboard_client(
-            api_key="test_key",
-            board_type=BoardType.NOTE,
-            use_local_api=True
+            api_key="test_key", board_type=BoardType.NOTE, use_local_api=True
         )
         assert client.board_rows == 3
         assert client.board_cols == 15
@@ -143,10 +133,7 @@ class TestFactoryFunction:
         """Test factory uses VestaboardConfig when provided."""
         from src.config import VestaboardConfig
 
-        config = VestaboardConfig(
-            api_key="config_api_key",
-            board_type="standard"
-        )
+        config = VestaboardConfig(api_key="config_api_key", board_type="standard")
         client = create_vestaboard_client(config=config)
         assert client.api_key == "config_api_key"
         assert isinstance(client, VestaboardClient)
@@ -159,7 +146,7 @@ class TestFactoryFunction:
             api_key="cloud_key",
             local_api_key="local_key",
             use_local_api=True,
-            board_type="standard"
+            board_type="standard",
         )
         client = create_vestaboard_client(config=config)
         assert client.api_key == "local_key"
@@ -167,22 +154,13 @@ class TestFactoryFunction:
 
     def test_factory_passes_max_queue_size(self):
         """Test factory passes max_queue_size parameter."""
-        client = create_vestaboard_client(
-            api_key="test_key",
-            max_queue_size=20
-        )
+        client = create_vestaboard_client(api_key="test_key", max_queue_size=20)
         assert client.message_queue.maxlen == 20
 
     def test_factory_returns_base_client_interface(self):
         """Test factory returns BaseVestaboardClient interface."""
-        cloud_client = create_vestaboard_client(
-            api_key="test_key",
-            use_local_api=False
-        )
-        local_client = create_vestaboard_client(
-            api_key="test_key",
-            use_local_api=True
-        )
+        cloud_client = create_vestaboard_client(api_key="test_key", use_local_api=False)
+        local_client = create_vestaboard_client(api_key="test_key", use_local_api=True)
         assert isinstance(cloud_client, BaseVestaboardClient)
         assert isinstance(local_client, BaseVestaboardClient)
 
@@ -190,7 +168,7 @@ class TestFactoryFunction:
 class TestClientBoardTypeUsage:
     """Test that clients use board_type for operations."""
 
-    @patch('src.vestaboard.cloud_client.requests.post')
+    @patch("src.vestaboard.cloud_client.requests.post")
     def test_cloud_client_uses_board_dimensions_in_logging(self, mock_post):
         """Test that Cloud client logs board dimensions."""
         # This is more of an integration test but validates the flow
@@ -209,7 +187,7 @@ class TestClientBoardTypeUsage:
         client = LocalVestaboardClient(api_key="test_key", board_type=BoardType.NOTE)
 
         # Mock the write to test text conversion
-        with patch.object(client, '_send_message_direct', return_value=True) as mock_send:
+        with patch.object(client, "_send_message_direct", return_value=True) as mock_send:
             client.write_message("TEST")
             # Verify that _send_message_direct was called with a layout
             assert mock_send.called
@@ -223,7 +201,7 @@ class TestClientBoardTypeUsage:
 class TestLocalClientReadCurrentMessage:
     """Test LocalVestaboardClient.read_current_message() handles different response formats."""
 
-    @patch('src.vestaboard.local_client.requests.get')
+    @patch("src.vestaboard.local_client.requests.get")
     def test_read_current_message_with_direct_array_response(self, mock_get):
         """Test read_current_message with direct array response (no wrapper)."""
         # Mock response with direct array (format 1)
@@ -246,7 +224,7 @@ class TestLocalClientReadCurrentMessage:
         assert result["currentMessage"]["layout"] == test_layout
         assert isinstance(result["currentMessage"]["layout"], list)
 
-    @patch('src.vestaboard.local_client.requests.get')
+    @patch("src.vestaboard.local_client.requests.get")
     def test_read_current_message_with_message_wrapper(self, mock_get):
         """Test read_current_message with message wrapper (fixes bug)."""
         # Mock response with "message" wrapper (format 2)
@@ -270,7 +248,7 @@ class TestLocalClientReadCurrentMessage:
         # Ensure it's NOT the dict wrapper
         assert not isinstance(result["currentMessage"]["layout"], dict)
 
-    @patch('src.vestaboard.local_client.requests.get')
+    @patch("src.vestaboard.local_client.requests.get")
     def test_read_current_message_error_handling(self, mock_get):
         """Test read_current_message handles request errors gracefully."""
         # Mock request exception

@@ -1,9 +1,11 @@
 """Comprehensive tests for HTTP API endpoints."""
 
 import time
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, MagicMock, patch
+
 from src.http_api import VestaboardHTTPAPI, create_app
 
 
@@ -33,7 +35,7 @@ class TestVestaboardHTTPAPIInitialization:
         app = create_app(mock_bridge)
 
         assert app is not None
-        assert hasattr(app, 'title')
+        assert hasattr(app, "title")
 
 
 class TestHealthEndpoint:
@@ -154,7 +156,7 @@ class TestMetricsEndpoint:
         mock_bridge.timer_manager.active_timers = {
             "timer_1": Mock(),
             "timer_2": Mock(),
-            "timer_3": Mock()
+            "timer_3": Mock(),
         }
 
         app = create_app(mock_bridge)
@@ -370,11 +372,14 @@ class TestConcurrentRequests:
         assert "uptime_seconds" in metrics.json()
 
 
-@pytest.mark.parametrize("endpoint,expected_keys", [
-    ("/health", ["status", "service"]),
-    ("/ready", ["status", "mqtt_connected"]),
-    ("/metrics", ["uptime_seconds", "active_timers", "mqtt_connected", "service", "version"]),
-])
+@pytest.mark.parametrize(
+    "endpoint,expected_keys",
+    [
+        ("/health", ["status", "service"]),
+        ("/ready", ["status", "mqtt_connected"]),
+        ("/metrics", ["uptime_seconds", "active_timers", "mqtt_connected", "service", "version"]),
+    ],
+)
 def test_endpoint_response_structure(endpoint, expected_keys):
     """Parametrized test for endpoint response structure."""
     mock_bridge = Mock()

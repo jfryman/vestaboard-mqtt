@@ -3,11 +3,11 @@
 import logging
 import threading
 import time
-from typing import Dict, Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
-    from ..vestaboard import BaseVestaboardClient
     from ..state import SaveStateManager
+    from ..vestaboard import BaseVestaboardClient
 
 
 class TimerManager:
@@ -15,9 +15,9 @@ class TimerManager:
 
     def __init__(
         self,
-        vestaboard_client: 'BaseVestaboardClient',
-        save_state_manager: 'SaveStateManager',
-        restore_callback
+        vestaboard_client: "BaseVestaboardClient",
+        save_state_manager: "SaveStateManager",
+        restore_callback,
     ):
         """Initialize the timer manager.
 
@@ -67,9 +67,7 @@ class TimerManager:
         # Schedule restoration
         def restore_previous():
             """Restore callback executed after timer expires."""
-            self.logger.info(
-                f"Timer {timer_id} expired, restoring from slot {restore_slot}"
-            )
+            self.logger.info(f"Timer {timer_id} expired, restoring from slot {restore_slot}")
 
             # Respect rate limits before restoring
             self._wait_for_rate_limit(write_time)
@@ -83,9 +81,7 @@ class TimerManager:
         self.active_timers[timer_id] = timer
         timer.start()
 
-        self.logger.info(
-            f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})"
-        )
+        self.logger.info(f"Scheduled timed message for {duration_seconds} seconds (ID: {timer_id})")
         return timer_id
 
     def cancel_timed_message(self, timer_id: str) -> bool:
@@ -115,11 +111,13 @@ class TimerManager:
             # Note: Timer objects don't expose remaining time directly
             # This is a limitation of threading.Timer
             created_at = timer_id.split("_")[-1] if "_" in timer_id else "unknown"
-            timer_info.append({
-                "timer_id": timer_id,
-                "active": timer.is_alive(),
-                "created_at": created_at,
-            })
+            timer_info.append(
+                {
+                    "timer_id": timer_id,
+                    "active": timer.is_alive(),
+                    "created_at": created_at,
+                }
+            )
         return timer_info
 
     def cleanup_all_timers(self):

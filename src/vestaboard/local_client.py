@@ -24,7 +24,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         board_type: BoardType = BoardType.STANDARD,
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
-        max_queue_size: int = 10
+        max_queue_size: int = 10,
     ):
         """Initialize the Local Vestaboard client.
 
@@ -42,10 +42,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         self.host = host
         self.port = port
         self.base_url = f"http://{host}:{port}/local-api/message"
-        self.headers = {
-            "X-Vestaboard-Local-Api-Key": api_key,
-            "Content-Type": "application/json"
-        }
+        self.headers = {"X-Vestaboard-Local-Api-Key": api_key, "Content-Type": "application/json"}
         self.logger = logging.getLogger(__name__)
         self.logger.info(f"Initialized Local API client for {board_type} board at {host}:{port}")
 
@@ -88,7 +85,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             return {
                 "currentMessage": {
                     "layout": layout,
-                    "id": f"local-{int(time.time())}"  # Generate pseudo-ID for consistency
+                    "id": f"local-{int(time.time())}",  # Generate pseudo-ID for consistency
                 }
             }
         except requests.RequestException as e:
@@ -141,12 +138,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
             self.logger.info(f"Writing layout array to Vestaboard (Local API - {self.board_type})")
             debug_layout_preview(layout, self.logger)
 
-            response = requests.post(
-                self.base_url,
-                headers=self.headers,
-                json=layout,
-                timeout=10
-            )
+            response = requests.post(self.base_url, headers=self.headers, json=layout, timeout=10)
 
             if response.status_code == 429:
                 self.logger.warning("Received 429 rate limit response from Vestaboard Local API")
@@ -172,7 +164,7 @@ class LocalVestaboardClient(BaseVestaboardClient, RateLimitMixin):
         """
         self.logger.error(f"Error writing message (Local API): {error}")
 
-        if hasattr(error, 'response') and error.response is not None:
+        if hasattr(error, "response") and error.response is not None:
             if error.response.status_code == 429:
                 self.logger.warning("Hit Vestaboard rate limit (429) - Local API")
             try:
