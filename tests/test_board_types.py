@@ -1,7 +1,7 @@
 """Tests for board type functionality and utilities."""
 
 import pytest
-from src.vestaboard_client import (
+from src.vestaboard import (
     BoardType,
     text_to_layout,
     debug_layout_preview,

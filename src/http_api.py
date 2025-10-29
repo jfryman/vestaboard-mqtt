@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 import time
-from .mqtt_bridge import VestaboardMQTTBridge
+from .mqtt import VestaboardMQTTBridge
 
 
 class VestaboardHTTPAPI:
@@ -47,9 +47,9 @@ class VestaboardHTTPAPI:
         async def metrics():
             """Basic metrics endpoint for monitoring."""
             uptime = time.time() - self.start_time
-            active_timer_count = len(self.mqtt_bridge.active_timers)
+            active_timer_count = len(self.mqtt_bridge.timer_manager.active_timers)
             mqtt_connected = self.mqtt_bridge.mqtt_client.is_connected()
-            
+
             return {
                 "uptime_seconds": round(uptime, 2),
                 "active_timers": active_timer_count,

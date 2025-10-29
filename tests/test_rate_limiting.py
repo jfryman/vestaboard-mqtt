@@ -3,13 +3,13 @@
 import time
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from src.vestaboard_client import VestaboardClient, LocalVestaboardClient
+from src.vestaboard import VestaboardClient, LocalVestaboardClient
 
 
 class TestRateLimiting:
     """Test rate limiting functionality."""
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_rate_limit_queues_rapid_messages(self, mock_post):
         """Test that rapid messages get queued due to rate limiting."""
         # Mock successful response
@@ -31,9 +31,9 @@ class TestRateLimiting:
         # First message should have been sent
         assert mock_post.call_count >= 1
 
-    @patch('src.vestaboard_client.time.time')
-    @patch('src.vestaboard_client.threading.Timer')
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.time.time')
+    @patch('src.vestaboard.base.threading.Timer')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_rate_limit_processes_queue(self, mock_post, mock_timer, mock_time):
         """Test that queued messages are eventually processed."""
         mock_response = Mock()
@@ -68,7 +68,7 @@ class TestRateLimiting:
         # Both messages should have been sent (timer executed with time advancement)
         assert mock_post.call_count == 2
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_queue_reaches_max_size(self, mock_post):
         """Test behavior when message queue reaches maximum size."""
         mock_response = Mock()
@@ -94,7 +94,7 @@ class TestRateLimiting:
         # Queue should be at max size
         assert len(client.message_queue) <= 3
 
-    @patch('src.vestaboard_client.requests.get')
+    @patch('src.vestaboard.cloud_client.requests.get')
     def test_local_api_rate_limiting(self, mock_get):
         """Test rate limiting for Local API client."""
         mock_response = Mock()
@@ -117,9 +117,9 @@ class TestRateLimiting:
 class TestQueueProcessing:
     """Test message queue processing."""
 
-    @patch('src.vestaboard_client.time.time')
-    @patch('src.vestaboard_client.threading.Timer')
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.time.time')
+    @patch('src.vestaboard.base.threading.Timer')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_queue_processing_handles_errors(self, mock_post, mock_timer, mock_time):
         """Test that queue processing handles API errors gracefully."""
         # First call succeeds, second fails, third succeeds
@@ -157,8 +157,8 @@ class TestQueueProcessing:
         # All messages should have been attempted (timers executed with time advancement)
         assert mock_post.call_count >= 2
 
-    @patch('src.vestaboard_client.requests.post')
-    @patch('src.vestaboard_client.threading.Timer')
+    @patch('src.vestaboard.cloud_client.requests.post')
+    @patch('src.vestaboard.base.threading.Timer')
     def test_queue_timer_cancellation(self, mock_timer, mock_post):
         """Test that queue timer is properly cancelled and rescheduled."""
         mock_response = Mock()
@@ -184,7 +184,7 @@ class TestQueueProcessing:
 class TestMessageQueueEdgeCases:
     """Test edge cases in message queue handling."""
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_empty_queue_processing(self, mock_post):
         """Test processing when queue becomes empty."""
         mock_response = Mock()
@@ -230,9 +230,9 @@ class TestMessageQueueEdgeCases:
 class TestRateLimitWaiting:
     """Test rate limit waiting and timing."""
 
-    @patch('src.vestaboard_client.time.time')
-    @patch('src.vestaboard_client.threading.Timer')
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.time.time')
+    @patch('src.vestaboard.base.threading.Timer')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_respects_rate_limit_timing(self, mock_post, mock_timer, mock_time):
         """Test that rate limiting schedules timers with correct delays."""
         mock_response = Mock()
@@ -274,7 +274,7 @@ class TestRateLimitWaiting:
         # First timer should be scheduled for approximately RATE_LIMIT_SECONDS
         assert timer_delays[0] >= 0.05  # At least some delay
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_last_send_time_updated(self, mock_post):
         """Test that last_send_time is updated after each send."""
         mock_response = Mock()
@@ -296,7 +296,7 @@ class TestRateLimitWaiting:
 class TestCleanup:
     """Test cleanup and resource management."""
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_cleanup_cancels_queue_timer(self, mock_post):
         """Test that cleanup properly cancels queue timer."""
         mock_response = Mock()

@@ -3,7 +3,7 @@
 import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock, call
-from src.mqtt_bridge import VestaboardMQTTBridge
+from src.mqtt import VestaboardMQTTBridge
 from src.config import MQTTConfig, AppConfig
 from tests.conftest import create_test_app_config
 
@@ -11,8 +11,8 @@ from tests.conftest import create_test_app_config
 class TestMQTTConnectionErrors:
     """Test MQTT connection error handling."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_mqtt_connection_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of MQTT connection failures."""
         mock_create_client.return_value = Mock()
@@ -32,8 +32,8 @@ class TestMQTTConnectionErrors:
         except Exception:
             pass  # Expected to be caught and logged
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_mqtt_disconnect_handling(self, mock_create_client, mock_mqtt_client):
         """Test MQTT disconnect callback."""
         mock_create_client.return_value = Mock()
@@ -52,8 +52,8 @@ class TestMQTTConnectionErrors:
 class TestTimedMessageEdgeCases:
     """Test timed message edge cases."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_timed_message_missing_fields(self, mock_create_client, mock_mqtt_client):
         """Test timed message with missing required fields."""
         mock_vestaboard = Mock()
@@ -71,11 +71,11 @@ class TestTimedMessageEdgeCases:
         msg.payload = payload.encode()
         msg.topic ="vestaboard/timed-message"
 
-        bridge._handle_timed_message(msg)
+        bridge.handlers.handle_timed_message(msg)
         # Should handle gracefully without crashing
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_timed_message_invalid_json(self, mock_create_client, mock_mqtt_client):
         """Test timed message with invalid JSON."""
         mock_vestaboard = Mock()
@@ -91,11 +91,11 @@ class TestTimedMessageEdgeCases:
         msg.payload = b"not valid json"
         msg.topic ="vestaboard/timed-message"
 
-        bridge._handle_timed_message(msg)
+        bridge.handlers.handle_timed_message(msg)
         # Should handle gracefully without crashing
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_cancel_nonexistent_timer(self, mock_create_client, mock_mqtt_client):
         """Test canceling a timer that doesn't exist."""
         mock_vestaboard = Mock()
@@ -111,15 +111,15 @@ class TestTimedMessageEdgeCases:
         msg.payload = b"nonexistent_timer_id"
         msg.topic ="vestaboard/cancel-timer/nonexistent_timer_id"
 
-        bridge._handle_cancel_timer(msg)
+        bridge.handlers.handle_cancel_timer(msg)
         # Should handle gracefully without crashing
 
 
 class TestMessageHandlingEdgeCases:
     """Test message handling edge cases."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_write_message_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of vestaboard write failures."""
         mock_vestaboard = Mock()
@@ -140,8 +140,8 @@ class TestMessageHandlingEdgeCases:
         # Should handle failure gracefully
         assert mock_vestaboard.write_message.called
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_message_with_json_array(self, mock_create_client, mock_mqtt_client):
         """Test message with JSON array payload."""
         mock_vestaboard = Mock()
@@ -164,8 +164,8 @@ class TestMessageHandlingEdgeCases:
         # Should parse as JSON and send
         mock_vestaboard.write_message.assert_called_with(layout)
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_message_invalid_json_treated_as_text(self, mock_create_client, mock_mqtt_client):
         """Test that invalid JSON is treated as text message."""
         mock_vestaboard = Mock()
@@ -190,8 +190,8 @@ class TestMessageHandlingEdgeCases:
 class TestRestoreFromSlot:
     """Test restore from slot functionality."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_restore_from_slot_sets_up_callback(self, mock_create_client, mock_mqtt_client):
         """Test that restore from slot sets up MQTT callback."""
         mock_vestaboard = Mock()
@@ -204,7 +204,7 @@ class TestRestoreFromSlot:
         bridge = VestaboardMQTTBridge(config)
 
         # Should set up callback and subscribe without crashing
-        bridge._restore_from_slot("test_slot")
+        bridge.restore_from_slot("test_slot")
 
         # Verify callback was added and subscribe was called
         assert mock_client_instance.message_callback_add.called
@@ -214,8 +214,8 @@ class TestRestoreFromSlot:
 class TestSaveAndDeleteSlots:
     """Test save and delete slot functionality."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_save_current_state_failure(self, mock_create_client, mock_mqtt_client):
         """Test handling of save state failures."""
         mock_vestaboard = Mock()
@@ -236,8 +236,8 @@ class TestSaveAndDeleteSlots:
         bridge._on_message(mock_client_instance, None, msg)
         # Should handle failure gracefully
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_delete_slot(self, mock_create_client, mock_mqtt_client):
         """Test deleting a saved slot."""
         mock_vestaboard = Mock()
@@ -252,15 +252,15 @@ class TestSaveAndDeleteSlots:
         bridge.save_state_manager.delete_saved_state.return_value = True
 
         # Test _handle_delete directly
-        bridge._handle_delete("test_slot")
+        bridge.handlers.handle_delete("test_slot")
         bridge.save_state_manager.delete_saved_state.assert_called_with("test_slot")
 
 
 class TestListTimers:
     """Test list timers functionality."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_list_timers_empty(self, mock_create_client, mock_mqtt_client):
         """Test listing timers when none are active."""
         mock_vestaboard = Mock()
@@ -273,7 +273,7 @@ class TestListTimers:
         bridge = VestaboardMQTTBridge(config)
 
         # Call _handle_list_timers directly
-        bridge._handle_list_timers("")
+        bridge.handlers.handle_list_timers("")
         # Should publish empty list
         assert mock_client_instance.publish.called
         # Verify payload contains empty list
@@ -281,8 +281,8 @@ class TestListTimers:
         payload = call_args[0][1] if len(call_args[0]) > 1 else call_args.kwargs['payload']
         assert '[]' in payload or payload == '[]'
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_list_timers_with_active_timers(self, mock_create_client, mock_mqtt_client):
         """Test listing timers when some are active."""
         mock_vestaboard = Mock()
@@ -297,10 +297,10 @@ class TestListTimers:
         # Add a mock timer (active_timers stores Timer objects directly)
         mock_timer = Mock()
         mock_timer.is_alive.return_value = True  # Timer needs is_alive() method
-        bridge.active_timers["timer_123"] = mock_timer
+        bridge.timer_manager.active_timers["timer_123"] = mock_timer
 
         # Call _handle_list_timers directly
-        bridge._handle_list_timers("")
+        bridge.handlers.handle_list_timers("")
         # Should publish timer info
         assert mock_client_instance.publish.called
         # Verify payload contains timer info
@@ -315,8 +315,8 @@ class TestListTimers:
 class TestTimerCancellation:
     """Test timer cancellation functionality."""
 
-    @patch('src.mqtt_bridge.mqtt.Client')
-    @patch('src.mqtt_bridge.create_vestaboard_client')
+    @patch('src.mqtt.bridge.mqtt.Client')
+    @patch('src.vestaboard.create_vestaboard_client')
     def test_cancel_timer_success(self, mock_create_client, mock_mqtt_client):
         """Test successful timer cancellation."""
         mock_vestaboard = Mock()
@@ -330,12 +330,12 @@ class TestTimerCancellation:
 
         # Add a mock timer (active_timers stores Timer objects directly)
         mock_timer = Mock()
-        bridge.active_timers["timer_123"] = mock_timer
+        bridge.timer_manager.active_timers["timer_123"] = mock_timer
 
         # Cancel the timer directly
-        bridge._handle_cancel_timer("timer_123")
+        bridge.handlers.handle_cancel_timer("timer_123")
 
         # Timer should be cancelled
         mock_timer.cancel.assert_called_once()
         # Timer should be removed from active_timers
-        assert "timer_123" not in bridge.active_timers
+        assert "timer_123" not in bridge.timer_manager.active_timers

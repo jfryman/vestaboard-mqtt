@@ -4,7 +4,7 @@ import logging
 import threading
 import uvicorn
 from .config import AppConfig
-from .mqtt_bridge import VestaboardMQTTBridge
+from .mqtt import VestaboardMQTTBridge
 from .http_api import create_app
 from .logger import configure_logging
 

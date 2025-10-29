@@ -4,11 +4,12 @@ import json
 import logging
 import time
 from typing import Any, Dict, List, Optional, TypedDict, TYPE_CHECKING
+
 import paho.mqtt.client as mqtt
-from .vestaboard_client import BaseVestaboardClient
 
 if TYPE_CHECKING:
-    from .config import AppConfig
+    from ..vestaboard import BaseVestaboardClient
+    from ..config import AppConfig
 
 
 class SaveData(TypedDict):
@@ -29,7 +30,7 @@ class SaveStateManager:
     def __init__(
         self,
         mqtt_client: mqtt.Client,
-        vestaboard_client: BaseVestaboardClient,
+        vestaboard_client: 'BaseVestaboardClient',
         topic_prefix: str = "vestaboard"
     ):
         """Initialize the save state manager.
@@ -88,7 +89,7 @@ class SaveStateManager:
             "saved_at": int(time.time()),
             "original_id": current_message["currentMessage"]["id"]
         }
-    
+
     def save_current_state(self, slot: str) -> bool:
         """Save the current Vestaboard state to a persistent MQTT message.
 
@@ -118,7 +119,7 @@ class SaveStateManager:
         except Exception as e:
             self.logger.error(f"Error saving state to slot '{slot}': {e}")
             return False
-    
+
     def restore_state(self, slot: str) -> bool:
         """Restore a saved state from MQTT and write it to the Vestaboard.
 
@@ -209,7 +210,7 @@ class SaveStateManager:
         except Exception as e:
             self.logger.error(f"Error restoring state: {e}")
             return False
-    
+
     def delete_saved_state(self, slot: str) -> bool:
         """Delete a saved state by publishing an empty retained message.
 

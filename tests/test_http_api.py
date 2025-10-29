@@ -14,7 +14,8 @@ class TestVestaboardHTTPAPIInitialization:
         """Test HTTP API initializes correctly."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         api = VestaboardHTTPAPI(mock_bridge)
 
@@ -26,7 +27,8 @@ class TestVestaboardHTTPAPIInitialization:
         """Test create_app factory function."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
 
@@ -41,7 +43,8 @@ class TestHealthEndpoint:
         """Test health endpoint returns healthy status."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -58,7 +61,8 @@ class TestHealthEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = False
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -78,7 +82,8 @@ class TestReadyEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -95,7 +100,8 @@ class TestReadyEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = False
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -116,7 +122,8 @@ class TestMetricsEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -143,7 +150,8 @@ class TestMetricsEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {
             "timer_1": Mock(),
             "timer_2": Mock(),
             "timer_3": Mock()
@@ -163,7 +171,8 @@ class TestMetricsEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = False
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -179,7 +188,8 @@ class TestMetricsEndpoint:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -207,7 +217,8 @@ class TestEndpointIntegration:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -225,7 +236,8 @@ class TestEndpointIntegration:
         """Test accessing non-existent endpoint returns 404."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -242,7 +254,8 @@ class TestAPIMetadata:
         """Test API has correct title and description."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         api = VestaboardHTTPAPI(mock_bridge)
 
@@ -254,7 +267,8 @@ class TestAPIMetadata:
         """Test OpenAPI schema is accessible."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -275,7 +289,8 @@ class TestKubernetesProbes:
         """Test health endpoint format suitable for liveness probe."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -291,7 +306,8 @@ class TestKubernetesProbes:
         """Test readiness probe accurately reflects MQTT connection state."""
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -315,7 +331,8 @@ class TestConcurrentRequests:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -332,7 +349,8 @@ class TestConcurrentRequests:
         mock_bridge = Mock()
         mock_bridge.mqtt_client = Mock()
         mock_bridge.mqtt_client.is_connected.return_value = True
-        mock_bridge.active_timers = {"timer_1": Mock()}
+        mock_bridge.timer_manager = Mock()
+        mock_bridge.timer_manager.active_timers = {"timer_1": Mock()}
 
         app = create_app(mock_bridge)
         client = TestClient(app)
@@ -362,7 +380,8 @@ def test_endpoint_response_structure(endpoint, expected_keys):
     mock_bridge = Mock()
     mock_bridge.mqtt_client = Mock()
     mock_bridge.mqtt_client.is_connected.return_value = True
-    mock_bridge.active_timers = {}
+    mock_bridge.timer_manager = Mock()
+    mock_bridge.timer_manager.active_timers = {}
 
     app = create_app(mock_bridge)
     client = TestClient(app)

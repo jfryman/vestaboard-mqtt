@@ -5,7 +5,7 @@ import time
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 import paho.mqtt.client as mqtt
-from src.save_state_manager import SaveStateManager
+from src.state import SaveStateManager
 
 
 class TestSaveStateManagerInitialization:

@@ -4,7 +4,7 @@ import os
 import pytest
 import requests
 from unittest.mock import Mock, patch, MagicMock
-from src.vestaboard_client import (
+from src.vestaboard import (
     BoardType,
     VestaboardClient,
     LocalVestaboardClient,
@@ -190,7 +190,7 @@ class TestFactoryFunction:
 class TestClientBoardTypeUsage:
     """Test that clients use board_type for operations."""
 
-    @patch('src.vestaboard_client.requests.post')
+    @patch('src.vestaboard.cloud_client.requests.post')
     def test_cloud_client_uses_board_dimensions_in_logging(self, mock_post):
         """Test that Cloud client logs board dimensions."""
         # This is more of an integration test but validates the flow
@@ -223,7 +223,7 @@ class TestClientBoardTypeUsage:
 class TestLocalClientReadCurrentMessage:
     """Test LocalVestaboardClient.read_current_message() handles different response formats."""
 
-    @patch('src.vestaboard_client.requests.get')
+    @patch('src.vestaboard.local_client.requests.get')
     def test_read_current_message_with_direct_array_response(self, mock_get):
         """Test read_current_message with direct array response (no wrapper)."""
         # Mock response with direct array (format 1)
@@ -246,7 +246,7 @@ class TestLocalClientReadCurrentMessage:
         assert result["currentMessage"]["layout"] == test_layout
         assert isinstance(result["currentMessage"]["layout"], list)
 
-    @patch('src.vestaboard_client.requests.get')
+    @patch('src.vestaboard.local_client.requests.get')
     def test_read_current_message_with_message_wrapper(self, mock_get):
         """Test read_current_message with message wrapper (fixes bug)."""
         # Mock response with "message" wrapper (format 2)
@@ -270,7 +270,7 @@ class TestLocalClientReadCurrentMessage:
         # Ensure it's NOT the dict wrapper
         assert not isinstance(result["currentMessage"]["layout"], dict)
 
-    @patch('src.vestaboard_client.requests.get')
+    @patch('src.vestaboard.local_client.requests.get')
     def test_read_current_message_error_handling(self, mock_get):
         """Test read_current_message handles request errors gracefully."""
         # Mock request exception

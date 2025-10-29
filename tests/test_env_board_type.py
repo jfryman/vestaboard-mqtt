@@ -3,7 +3,7 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from src.vestaboard_client import (
+from src.vestaboard import (
     BoardType,
     create_vestaboard_client,
     VestaboardClient,
