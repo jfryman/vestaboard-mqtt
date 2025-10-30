@@ -70,6 +70,17 @@ helm install vestaboard-mqtt ./deploy/chart -f my-values.yaml
 | `mqtt.broker.port` | MQTT broker port | `1883` |
 | `mqtt.topicPrefix` | Topic prefix for all MQTT topics | `vestaboard` |
 
+#### MQTT Credentials
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `mqtt.credentials.username.value` | Direct username value (when externalSecrets.enabled=false) | `""` |
+| `mqtt.credentials.username.externalSecret.key` | External secret key path for username | `"vestaboard-mqtt/mqtt"` |
+| `mqtt.credentials.username.externalSecret.property` | External secret property name for username | `"username"` |
+| `mqtt.credentials.password.value` | Direct password value (when externalSecrets.enabled=false) | `""` |
+| `mqtt.credentials.password.externalSecret.key` | External secret key path for password | `"vestaboard-mqtt/mqtt"` |
+| `mqtt.credentials.password.externalSecret.property` | External secret property name for password | `"password"` |
+
 #### Connection Settings
 
 | Parameter | Description | Default |
@@ -105,10 +116,15 @@ helm install vestaboard-mqtt ./deploy/chart -f my-values.yaml
 |-----------|-------------|---------|
 | `vestaboard.useLocalApi` | Use Local API instead of Cloud API | `false` |
 | `vestaboard.boardType` | Board type: `standard`, `note`, or `rows,cols` | `"standard"` |
+| `vestaboard.maxQueueSize` | Maximum message queue size | `"10"` |
 | `vestaboard.localApi.host` | Local API hostname (if useLocalApi=true) | `"vestaboard.local"` |
 | `vestaboard.localApi.port` | Local API port (if useLocalApi=true) | `"7000"` |
-| `vestaboard.cloudApi.secretKeyPath` | External secret path for Cloud API key | `"vestaboard-mqtt/api"` |
-| `vestaboard.localApiSecret.secretKeyPath` | External secret path for Local API key | `"vestaboard-mqtt/local-api"` |
+| `vestaboard.localApi.apiKey.value` | Direct API key value (when externalSecrets.enabled=false) | `""` |
+| `vestaboard.localApi.apiKey.externalSecret.key` | External secret key path | `"vestaboard-mqtt/local-api"` |
+| `vestaboard.localApi.apiKey.externalSecret.property` | External secret property name | `"key"` |
+| `vestaboard.cloudApi.apiKey.value` | Direct API key value (when externalSecrets.enabled=false) | `""` |
+| `vestaboard.cloudApi.apiKey.externalSecret.key` | External secret key path | `"vestaboard-mqtt/api"` |
+| `vestaboard.cloudApi.apiKey.externalSecret.property` | External secret property name | `"key"` |
 
 ### Application Configuration
 
@@ -116,6 +132,19 @@ helm install vestaboard-mqtt ./deploy/chart -f my-values.yaml
 |-----------|-------------|---------|
 | `application.httpPort` | HTTP API port | `"8000"` |
 | `application.logLevel` | Logging level (DEBUG, INFO, WARNING, ERROR) | `"INFO"` |
+
+### Custom Environment Variables
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `env` | Additional custom environment variables (key-value pairs) | `{}` |
+
+Example:
+```yaml
+env:
+  CUSTOM_VAR: "value"
+  ANOTHER_VAR: "another_value"
+```
 
 ### External Secrets
 
