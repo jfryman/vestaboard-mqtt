@@ -120,11 +120,32 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            {{- if not .Values.externalSecrets.enabled }}
+            # Direct credential injection (when external secrets are disabled)
+            {{- if .Values.mqtt.credentials.username.value }}
+            - name: MQTT_USERNAME
+              value: {{ .Values.mqtt.credentials.username.value | quote }}
+            {{- end }}
+            {{- if .Values.mqtt.credentials.password.value }}
+            - name: MQTT_PASSWORD
+              value: {{ .Values.mqtt.credentials.password.value | quote }}
+            {{- end }}
+            {{- if .Values.vestaboard.useLocalApi }}
+            {{- if .Values.vestaboard.localApi.apiKey.value }}
+            - name: VESTABOARD_LOCAL_API_KEY
+              value: {{ .Values.vestaboard.localApi.apiKey.value | quote }}
+            {{- end }}
+            {{- else }}
+            {{- if .Values.vestaboard.cloudApi.apiKey.value }}
+            - name: VESTABOARD_API_KEY
+              value: {{ .Values.vestaboard.cloudApi.apiKey.value | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
           {{- if .Values.externalSecrets.enabled }}
           envFrom:
-            # External secrets for sensitive data
             - secretRef:
-                name: vestaboard-mqtt-secrets
+                name: {{ include "vestaboard-mqtt.fullname" . }}-secrets
           {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}

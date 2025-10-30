@@ -129,17 +129,25 @@ vestaboard:
   localApi:
     host: "vestaboard.local"
     port: "7000"
+    # API Key - provide either value OR externalSecret
+    apiKey:
+      # Direct value (used when externalSecrets.enabled is false)
+      value: ""
+      # External secret reference (used when externalSecrets.enabled is true)
+      externalSecret:
+        key: "vestaboard-mqtt/local-api"
+        property: "key"
 
   # Cloud API configuration (only used when useLocalApi is false)
   cloudApi:
-    # API key will be provided via externalSecrets
-    secretKeyPath: "vestaboard-mqtt/api"
-    secretKeyProperty: "key"
-
-  # Local API key configuration (only used when useLocalApi is true)
-  localApiSecret:
-    secretKeyPath: "vestaboard-mqtt/local-api"
-    secretKeyProperty: "key"
+    # API Key - provide either value OR externalSecret
+    apiKey:
+      # Direct value (used when externalSecrets.enabled is false)
+      value: ""
+      # External secret reference (used when externalSecrets.enabled is true)
+      externalSecret:
+        key: "vestaboard-mqtt/api"
+        property: "key"
 
 # MQTT configuration
 mqtt:
@@ -147,6 +155,23 @@ mqtt:
   broker:
     host: "localhost"
     port: "1883"
+
+  # MQTT credentials - provide either value OR externalSecret for each
+  credentials:
+    username:
+      # Direct value (used when externalSecrets.enabled is false)
+      value: ""
+      # External secret reference (used when externalSecrets.enabled is true)
+      externalSecret:
+        key: "vestaboard-mqtt/mqtt"
+        property: "username"
+    password:
+      # Direct value (used when externalSecrets.enabled is false)
+      value: ""
+      # External secret reference (used when externalSecrets.enabled is true)
+      externalSecret:
+        key: "vestaboard-mqtt/mqtt"
+        property: "password"
 
   # Topic configuration (for multi-Vestaboard deployments)
   # Set a unique prefix for each Vestaboard instance
@@ -202,20 +227,12 @@ env: {}
   # Add any additional custom environment variables here
   # CUSTOM_VAR: "value"
 
-# External secrets for sensitive data only
+# External secrets configuration
+# When enabled, credentials are sourced from external secret store (e.g., Vault)
+# When disabled, credentials are provided directly via values above
 externalSecrets:
   enabled: true
   refreshInterval: 1h
   secretStore:
     name: vault-cluster-backend
     kind: ClusterSecretStore
-  # MQTT credentials (always included)
-  mqttSecrets:
-    - secretKey: MQTT_USERNAME
-      remoteRef:
-        key: vestaboard-mqtt/mqtt
-        property: username
-    - secretKey: MQTT_PASSWORD
-      remoteRef:
-        key: vestaboard-mqtt/mqtt
-        property: password
