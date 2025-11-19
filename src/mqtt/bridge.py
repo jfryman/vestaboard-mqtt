@@ -160,6 +160,7 @@ class VestaboardMQTTBridge:
         """
         topic_suffixes = [
             Topics.MESSAGE,
+            Topics.MESSAGE_WITH_STRATEGY,
             Topics.SAVE,
             Topics.RESTORE,
             Topics.DELETE,
@@ -239,6 +240,13 @@ class VestaboardMQTTBridge:
         elif suffix == Topics.LIST_TIMERS.replace("/+", ""):
             self.handlers.handle_list_timers(payload)
         # Pattern match handlers (with wildcards)
+        elif suffix.startswith("message/"):
+            strategy = suffix.split("/", 1)[1]
+            if not strategy:
+                self.logger.warning("Received message with empty strategy - treating as regular message")
+                self.handlers.handle_message(payload)
+            else:
+                self.handlers.handle_message(payload, strategy=strategy)
         elif suffix.startswith("save/"):
             slot = suffix.split("/", 1)[1]
             self.handlers.handle_save(slot)

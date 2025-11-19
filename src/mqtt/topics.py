@@ -5,6 +5,7 @@ class Topics:
     """MQTT topic suffixes."""
 
     MESSAGE = "message"
+    MESSAGE_WITH_STRATEGY = "message/+"
     SAVE = "save/+"
     RESTORE = "restore/+"
     DELETE = "delete/+"

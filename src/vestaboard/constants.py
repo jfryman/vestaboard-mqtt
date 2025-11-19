@@ -99,3 +99,14 @@ DEFAULT_PREVIEW_ROWS = 3
 
 # Queue processing delay
 QUEUE_PROCESSING_DELAY = 0.1  # seconds between immediate queue processing attempts
+
+# Animation strategies for Local API
+# These correspond to animations available in the Vestaboard app and API
+ANIMATION_STRATEGIES = [
+    "column",  # Wave effect (app-available)
+    "reverse-column",  # Drift effect (app-available)
+    "edges-to-center",  # Curtain effect (app-available)
+    "row",  # Row-by-row animation (API-only)
+    "diagonal",  # Corner-to-corner animation (API-only)
+    "random",  # Randomized animation (API-only)
+]
