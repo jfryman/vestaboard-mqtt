@@ -574,7 +574,129 @@ class TestTimedMessages:
 
         with patch.object(bridge.timer_manager, "schedule_timed_message", return_value="timer_456"):
             bridge.handlers.handle_timed_message(payload)
-            bridge.timer_manager.schedule_timed_message.assert_called_once_with("ALERT", 60, None)
+            bridge.timer_manager.schedule_timed_message.assert_called_once_with(
+                message="ALERT",
+                duration_seconds=60,
+                restore_slot=None,
+                strategy=None,
+                step_interval_ms=None,
+                step_size=None,
+            )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    @patch("src.mqtt.timers.threading.Timer")
+    def test_timed_message_with_animation_local_api(self, mock_timer, mock_create_client):
+        """Test timed message with animation strategy on Local API."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        with patch.object(bridge.save_state_manager, "save_current_state", return_value=True):
+            timer_id = bridge.timer_manager.schedule_timed_message(
+                message="ALERT",
+                duration_seconds=30,
+                strategy="column",
+            )
+
+            assert timer_id.startswith("timer_")
+            mock_local_client.write_animated_message.assert_called_once_with(
+                message="ALERT",
+                strategy="column",
+                step_interval_ms=None,
+                step_size=None,
+            )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    @patch("src.mqtt.timers.threading.Timer")
+    def test_timed_message_with_animation_cloud_api(self, mock_timer, mock_create_client):
+        """Test timed message with animation strategy on Cloud API (should warn and use regular)."""
+        from src.vestaboard.cloud_client import VestaboardClient
+
+        mock_cloud_client = Mock(spec=VestaboardClient)
+        mock_cloud_client.write_message.return_value = True
+        mock_create_client.return_value = mock_cloud_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        with patch.object(bridge.save_state_manager, "save_current_state", return_value=True):
+            timer_id = bridge.timer_manager.schedule_timed_message(
+                message="ALERT",
+                duration_seconds=30,
+                strategy="column",
+            )
+
+            assert timer_id.startswith("timer_")
+            mock_cloud_client.write_message.assert_called_once_with("ALERT")
+            assert not hasattr(mock_cloud_client, "write_animated_message")
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    @patch("src.mqtt.timers.threading.Timer")
+    def test_timed_message_with_animation_timing_params(self, mock_timer, mock_create_client):
+        """Test timed message with animation timing parameters."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        with patch.object(bridge.save_state_manager, "save_current_state", return_value=True):
+            timer_id = bridge.timer_manager.schedule_timed_message(
+                message="ALERT",
+                duration_seconds=30,
+                strategy="edges-to-center",
+                step_interval_ms=2000,
+                step_size=5,
+            )
+
+            assert timer_id.startswith("timer_")
+            mock_local_client.write_animated_message.assert_called_once_with(
+                message="ALERT",
+                strategy="edges-to-center",
+                step_interval_ms=2000,
+                step_size=5,
+            )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_timed_message_with_animation(self, mock_create_client):
+        """Test handling timed message with animation via MQTT."""
+        mock_client = Mock()
+        mock_client.write_message.return_value = True
+        mock_create_client.return_value = mock_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        payload = json.dumps({
+            "message": "ALERT",
+            "duration_seconds": 60,
+            "strategy": "column",
+            "step_interval_ms": 1500,
+            "step_size": 3,
+        })
+
+        with patch.object(bridge.timer_manager, "schedule_timed_message", return_value="timer_789"):
+            bridge.handlers.handle_timed_message(payload)
+            bridge.timer_manager.schedule_timed_message.assert_called_once_with(
+                message="ALERT",
+                duration_seconds=60,
+                restore_slot=None,
+                strategy="column",
+                step_interval_ms=1500,
+                step_size=3,
+            )
 
     @patch("src.vestaboard.create_vestaboard_client")
     def test_handle_cancel_timer(self, mock_create_client):

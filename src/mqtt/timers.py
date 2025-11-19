@@ -5,6 +5,8 @@ import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from ..vestaboard.local_client import LocalVestaboardClient
+
 if TYPE_CHECKING:
     from ..state import SaveStateManager
     from ..vestaboard import BaseVestaboardClient
@@ -37,13 +39,19 @@ class TimerManager:
         message: str,
         duration_seconds: int,
         restore_slot: Optional[str] = None,
+        strategy: Optional[str] = None,
+        step_interval_ms: Optional[int] = None,
+        step_size: Optional[int] = None,
     ) -> str:
-        """Schedule a timed message with optional auto-restore.
+        """Schedule a timed message with optional auto-restore and animation.
 
         Args:
             message: Message to display
             duration_seconds: How long to display the message
             restore_slot: Optional slot to restore from after timer expires
+            strategy: Optional animation strategy for Local API
+            step_interval_ms: Optional delay between animation steps (1-60000ms)
+            step_size: Optional number of updates to apply simultaneously (1-132)
 
         Returns:
             Timer ID for cancellation
@@ -55,11 +63,31 @@ class TimerManager:
             restore_slot = f"temp_{timer_id}"
             self.save_state_manager.save_current_state(restore_slot)
 
+        # Determine if animation is requested and supported
+        use_animation = strategy and isinstance(self.vestaboard_client, LocalVestaboardClient)
+
         # Display the timed message
-        success = self.vestaboard_client.write_message(message)
+        if use_animation:
+            success = self.vestaboard_client.write_animated_message(
+                message=message,
+                strategy=strategy,
+                step_interval_ms=step_interval_ms,
+                step_size=step_size,
+            )
+            message_type = f"animated timed message (strategy={strategy})"
+        else:
+            if strategy:
+                self.logger.warning(
+                    f"Animation strategy '{strategy}' ignored - only supported with Local API"
+                )
+            success = self.vestaboard_client.write_message(message)
+            message_type = "timed message"
+
         if not success:
-            self.logger.error("Failed to display timed message")
+            self.logger.error(f"Failed to display {message_type}")
             return timer_id
+
+        self.logger.info(f"Successfully sent {message_type}")
 
         # Record when we wrote the timed message for rate limit tracking
         write_time = time.time()

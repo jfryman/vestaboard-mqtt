@@ -102,20 +102,28 @@ class MessageHandlers:
         """Handle timed message request via MQTT.
 
         Args:
-            payload: JSON payload with message, duration, and optional restore_slot
+            payload: JSON payload with message, duration, optional restore_slot, and animation params
         """
         try:
             data = json.loads(payload)
             message = data.get("message", "")
             duration_seconds = data.get("duration_seconds", 60)
             restore_slot = data.get("restore_slot")
+            strategy = data.get("strategy")
+            step_interval_ms = data.get("step_interval_ms")
+            step_size = data.get("step_size")
 
             if not message:
                 self.logger.error("Timed message request missing 'message' field")
                 return
 
             timer_id = self.bridge.timer_manager.schedule_timed_message(
-                message, duration_seconds, restore_slot
+                message=message,
+                duration_seconds=duration_seconds,
+                restore_slot=restore_slot,
+                strategy=strategy,
+                step_interval_ms=step_interval_ms,
+                step_size=step_size,
             )
 
             # Optionally publish timer ID back to a response topic
