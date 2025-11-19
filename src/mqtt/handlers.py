@@ -5,6 +5,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Optional
 
+from ..vestaboard.local_client import LocalVestaboardClient
 from .topics import Topics
 
 if TYPE_CHECKING:
@@ -25,20 +26,42 @@ class MessageHandlers:
         self.bridge = bridge
         self.logger = logging.getLogger(__name__)
 
-    def handle_message(self, payload: str) -> None:
-        """Handle regular message to display on Vestaboard.
+    def handle_message(self, payload: str, strategy: Optional[str] = None) -> None:
+        """Handle message to display on Vestaboard.
 
         Args:
-            payload: Message payload (text, JSON layout array, or JSON object)
+            payload: Message payload (text, JSON layout array, or JSON object with optional
+                     step_interval_ms and step_size parameters)
+            strategy: Optional animation strategy for Local API
         """
         try:
-            message_content = self._parse_message_payload(payload)
-            success = self.bridge.vestaboard_client.write_message(message_content)
+            message_content, step_interval_ms, step_size = self._parse_message_with_params(payload)
 
-            if success:
-                self.logger.info("Message sent to Vestaboard successfully")
+            # Determine if animation is requested and supported
+            use_animation = strategy and isinstance(
+                self.bridge.vestaboard_client, LocalVestaboardClient
+            )
+
+            # Send the message
+            if use_animation:
+                success = self.bridge.vestaboard_client.write_animated_message(
+                    message=message_content,
+                    strategy=strategy,
+                    step_interval_ms=step_interval_ms,
+                    step_size=step_size,
+                )
+                message_type = f"animated message (strategy={strategy})"
             else:
-                self.logger.error("Failed to send message to Vestaboard")
+                if strategy:
+                    self.logger.warning(
+                        f"Animation strategy '{strategy}' ignored - only supported with Local API"
+                    )
+                success = self.bridge.vestaboard_client.write_message(message_content)
+                message_type = "message"
+
+            # Log the result
+            self._log_send_result(success, message_type)
+
         except Exception as e:
             self.logger.error(f"Error handling message: {e}", exc_info=True)
 
@@ -165,6 +188,41 @@ class MessageHandlers:
             # Plain text message
             return payload
 
+    def _parse_message_with_params(self, payload: str) -> tuple[Any, Optional[int], Optional[int]]:
+        """Parse message payload and extract optional animation parameters.
+
+        Args:
+            payload: Raw message payload
+
+        Returns:
+            Tuple of (message_content, step_interval_ms, step_size)
+        """
+        # Try to parse as JSON
+        try:
+            message_data = json.loads(payload)
+        except json.JSONDecodeError:
+            # Plain text message - no animation parameters
+            return payload, None, None
+
+        # Extract animation parameters if dict
+        step_interval_ms = None
+        step_size = None
+        if isinstance(message_data, dict):
+            step_interval_ms = message_data.get("step_interval_ms")
+            step_size = message_data.get("step_size")
+
+        # Determine message content based on type
+        if isinstance(message_data, list):
+            message_content = message_data
+        elif isinstance(message_data, dict) and "text" in message_data:
+            message_content = message_data["text"]
+        elif isinstance(message_data, dict):
+            message_content = str(message_data)
+        else:
+            message_content = str(message_data)
+
+        return message_content, step_interval_ms, step_size
+
     def _parse_list_timers_payload(self, payload: str) -> str:
         """Parse list timers payload to extract response topic.
 
@@ -211,3 +269,15 @@ class MessageHandlers:
         }
         self.bridge.mqtt_client.publish(topic, json.dumps(response))
         self.logger.debug(f"Published timer response to {topic}")
+
+    def _log_send_result(self, success: bool, message_type: str) -> None:
+        """Log the result of sending a message.
+
+        Args:
+            success: Whether the message was sent successfully
+            message_type: Description of the message type for logging
+        """
+        if success:
+            self.logger.info(f"Successfully sent {message_type}")
+        else:
+            self.logger.error(f"Failed to send {message_type}")

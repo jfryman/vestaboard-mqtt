@@ -305,9 +305,10 @@ class TestMQTTCallbacks:
         bridge._on_connect(mock_client, None, None, 0)
 
         # Verify all topics were subscribed
-        assert mock_client.subscribe.call_count == 7
+        assert mock_client.subscribe.call_count == 8
         expected_topics = [
             "vestaboard/message",
+            "vestaboard/message/+",
             "vestaboard/save/+",
             "vestaboard/restore/+",
             "vestaboard/delete/+",
@@ -659,3 +660,119 @@ class TestStopCleanup:
 
         mock_client_instance.disconnect.assert_called_once()
         mock_client_instance.loop_stop.assert_called_once()
+
+
+class TestAnimatedMessages:
+    """Test animated message handling via MQTT."""
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_message_with_strategy_local_api(self, mock_create_client):
+        """Test handling message with animation strategy on Local API."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        bridge.handlers.handle_message("TEST MESSAGE", strategy="column")
+
+        mock_local_client.write_animated_message.assert_called_once_with(
+            message="TEST MESSAGE", strategy="column", step_interval_ms=None, step_size=None
+        )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_message_with_strategy_cloud_api(self, mock_create_client):
+        """Test handling message with animation strategy on Cloud API (should warn)."""
+        from src.vestaboard.cloud_client import VestaboardClient
+
+        mock_cloud_client = Mock(spec=VestaboardClient)
+        mock_cloud_client.write_message.return_value = True
+        mock_create_client.return_value = mock_cloud_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        bridge.handlers.handle_message("TEST MESSAGE", strategy="column")
+
+        mock_cloud_client.write_message.assert_called_once_with("TEST MESSAGE")
+        assert not hasattr(mock_cloud_client, "write_animated_message")
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_message_with_timing_params(self, mock_create_client):
+        """Test handling message with animation timing parameters."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        payload = json.dumps({"text": "HELLO", "step_interval_ms": 2000, "step_size": 3})
+        bridge.handlers.handle_message(payload, strategy="random")
+
+        mock_local_client.write_animated_message.assert_called_once_with(
+            message="HELLO", strategy="random", step_interval_ms=2000, step_size=3
+        )
+
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_message_routing_with_strategy(self, mock_create_client, mock_mqtt_client):
+        """Test routing of message/{strategy} topics."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_create_client.return_value = mock_local_client
+
+        mock_client_instance = Mock()
+        mock_mqtt_client.return_value = mock_client_instance
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883, topic_prefix="vestaboard")
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        # Simulate message on vestaboard/message/column topic
+        mock_message = Mock()
+        mock_message.topic = "vestaboard/message/column"
+        mock_message.payload = b"TEST"
+
+        bridge._on_message(mock_client_instance, None, mock_message)
+
+        mock_local_client.write_animated_message.assert_called_once()
+        call_args = mock_local_client.write_animated_message.call_args
+        assert call_args[1]["strategy"] == "column"
+
+    @patch("src.mqtt.bridge.mqtt.Client")
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_message_routing_with_empty_strategy(self, mock_create_client, mock_mqtt_client):
+        """Test routing of message/ topic with empty strategy (edge case)."""
+        mock_client = Mock()
+        mock_client.write_message.return_value = True
+        mock_create_client.return_value = mock_client
+
+        mock_client_instance = Mock()
+        mock_mqtt_client.return_value = mock_client_instance
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883, topic_prefix="vestaboard")
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        # Simulate message on vestaboard/message/ topic (trailing slash, no strategy)
+        mock_message = Mock()
+        mock_message.topic = "vestaboard/message/"
+        mock_message.payload = b"TEST"
+
+        bridge._on_message(mock_client_instance, None, mock_message)
+
+        # Should be handled as regular message, not animated
+        mock_client.write_message.assert_called_once_with("TEST")
+        # Ensure animated method was NOT called
+        assert not hasattr(mock_client, "write_animated_message") or not mock_client.write_animated_message.called

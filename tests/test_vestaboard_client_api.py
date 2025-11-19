@@ -342,3 +342,242 @@ class TestClientCleanup:
 
         # Should not raise exception
         assert True
+
+
+class TestAnimatedMessages:
+    """Test animated message functionality for Local API."""
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_text(self, mock_post):
+        """Test sending animated message with text."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="HELLO", strategy="column")
+
+        assert result is True
+        assert mock_post.called
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        assert "characters" in payload
+        assert payload["strategy"] == "column"
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_layout(self, mock_post):
+        """Test sending animated message with layout array."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        layout = [[0] * 22 for _ in range(6)]
+        result = client.write_animated_message(message=layout, strategy="edges-to-center")
+
+        assert result is True
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        assert payload["characters"] == layout
+        assert payload["strategy"] == "edges-to-center"
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_with_timing(self, mock_post):
+        """Test animated message with timing parameters."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(
+            message="TEST",
+            strategy="random",
+            step_interval_ms=2000,
+            step_size=3,
+        )
+
+        assert result is True
+        call_args = mock_post.call_args
+        payload = call_args[1]["json"]
+        assert payload["strategy"] == "random"
+        assert payload["step_interval_ms"] == 2000
+        assert payload["step_size"] == 3
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_invalid_strategy(self, mock_post):
+        """Test animated message with invalid strategy."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="invalid-strategy")
+
+        assert result is False
+        assert not mock_post.called
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_all_strategies(self, mock_post):
+        """Test all animation strategies."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Use rate limit of 0 to disable rate limiting for this test
+        client = LocalVestaboardClient(api_key="test_key")
+        client.rate_limit_seconds = 0
+
+        strategies = [
+            "column",
+            "reverse-column",
+            "edges-to-center",
+            "row",
+            "diagonal",
+            "random",
+        ]
+
+        for strategy in strategies:
+            result = client.write_animated_message(message="TEST", strategy=strategy)
+            assert result is True, f"Strategy {strategy} failed"
+
+        assert mock_post.call_count == len(strategies)
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_rate_limit(self, mock_post):
+        """Test animated message handles rate limiting."""
+        mock_response = Mock()
+        mock_response.status_code = 429
+        mock_post.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="column")
+
+        assert result is False
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_network_error(self, mock_post):
+        """Test animated message handles network errors."""
+        import requests
+
+        mock_post.side_effect = requests.RequestException("Network error")
+
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="column")
+
+        assert result is False
+
+    def test_write_animated_message_invalid_step_interval_negative(self):
+        """Test animated message rejects negative step_interval_ms."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=-100
+        )
+        assert result is False
+
+    def test_write_animated_message_invalid_step_interval_zero(self):
+        """Test animated message rejects zero step_interval_ms."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=0
+        )
+        assert result is False
+
+    def test_write_animated_message_invalid_step_interval_too_large(self):
+        """Test animated message rejects step_interval_ms > 60000."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=60001
+        )
+        assert result is False
+
+    def test_write_animated_message_invalid_step_interval_type(self):
+        """Test animated message rejects non-integer step_interval_ms."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=1.5
+        )
+        assert result is False
+
+    def test_write_animated_message_invalid_step_size_negative(self):
+        """Test animated message rejects negative step_size."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=-5)
+        assert result is False
+
+    def test_write_animated_message_invalid_step_size_zero(self):
+        """Test animated message rejects zero step_size."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=0)
+        assert result is False
+
+    def test_write_animated_message_invalid_step_size_too_large(self):
+        """Test animated message rejects step_size > board size."""
+        client = LocalVestaboardClient(api_key="test_key")
+        # Standard board is 6x22 = 132 cells
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=133)
+        assert result is False
+
+    def test_write_animated_message_invalid_step_size_type(self):
+        """Test animated message rejects non-integer step_size."""
+        client = LocalVestaboardClient(api_key="test_key")
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=2.5)
+        assert result is False
+
+    def test_write_animated_message_invalid_step_interval_boolean(self):
+        """Test animated message rejects boolean step_interval_ms."""
+        client = LocalVestaboardClient(api_key="test_key")
+        # Test True (which would pass isinstance(True, int) without explicit bool check)
+        result = client.write_animated_message(message="TEST", strategy="column", step_interval_ms=True)
+        assert result is False
+        # Test False
+        result = client.write_animated_message(message="TEST", strategy="column", step_interval_ms=False)
+        assert result is False
+
+    def test_write_animated_message_invalid_step_size_boolean(self):
+        """Test animated message rejects boolean step_size."""
+        client = LocalVestaboardClient(api_key="test_key")
+        # Test True (which would pass isinstance(True, int) without explicit bool check)
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=True)
+        assert result is False
+        # Test False
+        result = client.write_animated_message(message="TEST", strategy="column", step_size=False)
+        assert result is False
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_valid_edge_values(self, mock_post):
+        """Test animated message accepts valid edge values."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Use rate limit of 0 to disable rate limiting for this test
+        client = LocalVestaboardClient(api_key="test_key")
+        client.rate_limit_seconds = 0
+
+        # Test minimum valid values
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=1, step_size=1
+        )
+        assert result is True
+
+        # Test maximum valid values
+        result = client.write_animated_message(
+            message="TEST", strategy="column", step_interval_ms=60000, step_size=132
+        )
+        assert result is True
+
+    @patch("src.vestaboard.local_client.requests.post")
+    def test_write_animated_message_respects_rate_limit(self, mock_post):
+        """Test animated message respects rate limiting and returns False."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        client = LocalVestaboardClient(api_key="test_key")
+
+        # Send first message successfully
+        result1 = client.write_animated_message(message="TEST1", strategy="column")
+        assert result1 is True
+
+        # Second message should be rate limited (returns False, not queued)
+        result2 = client.write_animated_message(message="TEST2", strategy="column")
+        assert result2 is False
+
+        # Only the first message should have been sent
+        assert mock_post.call_count == 1
