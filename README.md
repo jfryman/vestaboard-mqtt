@@ -9,6 +9,7 @@ A Python application that bridges MQTT messages to [Vestaboard](https://www.vest
 - **🔒 Secure MQTT**: TLS/SSL encryption, mutual TLS, and comprehensive security options
 - **📏 Multi-Board Support**: Works with Standard Vestaboard (6x22) and Vestaboard Note (3x15)
 - **🌐 Dual API Support**: Cloud Read/Write API or Local API
+- **🎬 Animated Transitions**: Six animation strategies with Local API (wave, drift, curtain, row, diagonal, random)
 - **💾 Save States**: Persistent state storage using MQTT retained messages with slot management
 - **⏰ Timed Messages**: Display messages for specified durations with automatic restoration
 - **🎯 Smart Restoration**: Automatic save/restore functionality with timer management
@@ -74,6 +75,7 @@ All topics use a configurable prefix (default: `vestaboard`). Set `MQTT_TOPIC_PR
 
 ### Core Operations
 - `{prefix}/message` - Send text or layout array to display
+- `{prefix}/message/{strategy}` - Send animated message with transitions (Local API only)
 - `{prefix}/save/{slot}` - Save current display state to named slot
 - `{prefix}/restore/{slot}` - Restore display from named slot
 - `{prefix}/delete/{slot}` - Delete saved state from named slot
@@ -94,6 +96,29 @@ mosquitto_pub -t "office-board/message" -m "Meeting at 3pm"
 # Control lobby board (prefix: lobby-board)
 mosquitto_pub -t "lobby-board/message" -m "Welcome!"
 ```
+
+### Animated Message Example (Local API)
+```bash
+# Send message with wave effect
+mosquitto_pub -t "vestaboard/message/column" -m "Hello World"
+
+# Curtain effect with text
+mosquitto_pub -t "vestaboard/message/edges-to-center" -m "Welcome!"
+
+# Diagonal animation with layout array
+mosquitto_pub -t "vestaboard/message/diagonal" -m '[[71,72,0,0,...], ...]'
+
+# Custom timing with JSON parameters
+mosquitto_pub -t "vestaboard/message/random" -m '{
+  "text": "Surprise!",
+  "step_interval_ms": 2000,
+  "step_size": 3
+}'
+```
+
+Available animation strategies: `column` (wave), `reverse-column` (drift), `edges-to-center` (curtain), `row`, `diagonal`, `random`
+
+Optional timing parameters: `step_interval_ms` (delay between steps), `step_size` (number of simultaneous updates)
 
 ## 🔧 Configuration
 

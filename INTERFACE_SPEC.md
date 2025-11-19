@@ -24,8 +24,41 @@ Send text or layout arrays to display on Vestaboard.
 
 **Payload Options:**
 - Plain text string: `"Hello World"`
-- JSON text object: `{"text": "Hello World"}`  
+- JSON text object: `{"text": "Hello World"}`
 - Layout array (6x22 character codes): `[[71,72,0,0,...], ...]`
+
+#### `vestaboard/message/{strategy}`
+Send animated message to Vestaboard with transitions (Local API only).
+
+**Topic Patterns:**
+- `vestaboard/message/column` - Wave effect
+- `vestaboard/message/reverse-column` - Drift effect
+- `vestaboard/message/edges-to-center` - Curtain effect
+- `vestaboard/message/row` - Row-by-row animation
+- `vestaboard/message/diagonal` - Corner-to-corner animation
+- `vestaboard/message/random` - Randomized animation
+
+**Payload Options:**
+- Plain text string: `"Hello World"`
+- JSON text object: `{"text": "Hello World"}`
+- JSON with animation timing: `{"text": "Hello", "step_interval_ms": 2000, "step_size": 3}`
+- Layout array (6x22 character codes): `[[71,72,0,0,...], ...]`
+
+**Optional JSON Fields:**
+- `step_interval_ms` (int): Delay in milliseconds between animation steps
+- `step_size` (int): Number of updates to apply simultaneously
+
+**Available Strategies:**
+- `column` - Wave effect (app-available)
+- `reverse-column` - Drift effect (app-available)
+- `edges-to-center` - Curtain effect (app-available)
+- `row` - Row-by-row animation (API-only)
+- `diagonal` - Corner-to-corner animation (API-only)
+- `random` - Randomized animation (API-only)
+
+**Requirements:**
+- Only available when using Local API (`VESTABOARD_LOCAL_API_KEY` configured)
+- Falls back to regular message display with Cloud API (strategy ignored with warning)
 
 #### `vestaboard/save/{slot}`
 Save current display state to named slot using MQTT retained messages.
