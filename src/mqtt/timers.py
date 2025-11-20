@@ -42,6 +42,9 @@ class TimerManager:
         strategy: Optional[str] = None,
         step_interval_ms: Optional[int] = None,
         step_size: Optional[int] = None,
+        restore_strategy: Optional[str] = None,
+        restore_step_interval_ms: Optional[int] = None,
+        restore_step_size: Optional[int] = None,
     ) -> str:
         """Schedule a timed message with optional auto-restore and animation.
 
@@ -49,9 +52,12 @@ class TimerManager:
             message: Message to display
             duration_seconds: How long to display the message
             restore_slot: Optional slot to restore from after timer expires
-            strategy: Optional animation strategy for Local API
-            step_interval_ms: Optional delay between animation steps (1-60000ms)
-            step_size: Optional number of updates to apply simultaneously (1-132)
+            strategy: Optional animation strategy for timed message (Local API)
+            step_interval_ms: Optional delay between animation steps for timed message (1-60000ms)
+            step_size: Optional number of updates for timed message (1-132)
+            restore_strategy: Optional animation strategy for restore (defaults to strategy)
+            restore_step_interval_ms: Optional delay for restore (defaults to step_interval_ms)
+            restore_step_size: Optional size for restore (defaults to step_size)
 
         Returns:
             Timer ID for cancellation
@@ -92,6 +98,15 @@ class TimerManager:
         # Record when we wrote the timed message for rate limit tracking
         write_time = time.time()
 
+        # Default restore animation params to timed message params if not specified
+        final_restore_strategy = restore_strategy if restore_strategy is not None else strategy
+        final_restore_step_interval_ms = (
+            restore_step_interval_ms if restore_step_interval_ms is not None else step_interval_ms
+        )
+        final_restore_step_size = (
+            restore_step_size if restore_step_size is not None else step_size
+        )
+
         # Schedule restoration
         def restore_previous():
             """Restore callback executed after timer expires."""
@@ -100,7 +115,12 @@ class TimerManager:
             # Respect rate limits before restoring
             self._wait_for_rate_limit(write_time)
 
-            self.restore_callback(restore_slot)
+            self.restore_callback(
+                restore_slot,
+                strategy=final_restore_strategy,
+                step_interval_ms=final_restore_step_interval_ms,
+                step_size=final_restore_step_size,
+            )
 
             # Clean up timer tracking
             self.active_timers.pop(timer_id, None)

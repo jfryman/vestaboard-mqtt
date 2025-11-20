@@ -252,7 +252,7 @@ class VestaboardMQTTBridge:
             self.handlers.handle_save(slot)
         elif suffix.startswith("restore/"):
             slot = suffix.split("/", 1)[1]
-            self.handlers.handle_restore_request(slot)
+            self.handlers.handle_restore_request(slot, payload)
         elif suffix.startswith("delete/"):
             slot = suffix.split("/", 1)[1]
             self.handlers.handle_delete(slot)
@@ -262,11 +262,20 @@ class VestaboardMQTTBridge:
         else:
             self.logger.warning(f"Unknown topic suffix: {suffix}")
 
-    def restore_from_slot(self, slot: str) -> None:
+    def restore_from_slot(
+        self,
+        slot: str,
+        strategy: Optional[str] = None,
+        step_interval_ms: Optional[int] = None,
+        step_size: Optional[int] = None,
+    ) -> None:
         """Internal method to restore from a slot (used by both manual and timed restores).
 
         Args:
             slot: Save slot name to restore from
+            strategy: Optional animation strategy for Local API
+            step_interval_ms: Optional delay between animation steps (1-60000ms)
+            step_size: Optional number of updates to apply simultaneously (1-132)
         """
         state_topic = self.get_topic(f"{Topics.STATES}/{slot}")
 
@@ -288,7 +297,12 @@ class VestaboardMQTTBridge:
                 save_data = json.loads(payload_str)
                 self.logger.debug(f"Parsed save data keys: {list(save_data.keys())}")
 
-                success = self.save_state_manager.restore_from_data(save_data)
+                success = self.save_state_manager.restore_from_data(
+                    save_data,
+                    strategy=strategy,
+                    step_interval_ms=step_interval_ms,
+                    step_size=step_size,
+                )
                 if success:
                     self.logger.info(f"Restored state from slot '{slot}'")
                 else:

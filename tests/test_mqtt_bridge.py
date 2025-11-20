@@ -447,7 +447,9 @@ class TestSaveRestoreDelete:
 
         with patch.object(bridge, "restore_from_slot"):
             bridge.handlers.handle_restore_request("test_slot")
-            bridge.restore_from_slot.assert_called_once_with("test_slot")
+            bridge.restore_from_slot.assert_called_once_with(
+                "test_slot", strategy=None, step_interval_ms=None, step_size=None
+            )
 
     @patch("src.vestaboard.create_vestaboard_client")
     def test_handle_delete(self, mock_create_client):
@@ -480,6 +482,57 @@ class TestSaveRestoreDelete:
         with patch.object(bridge.handlers, "handle_save"):
             bridge._on_message(None, None, mock_message)
             bridge.handlers.handle_save.assert_called_once_with("slot1")
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_restore_with_animation(self, mock_create_client):
+        """Test manual restore with animation via JSON payload."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        payload = json.dumps({"strategy": "column", "step_interval_ms": 1500, "step_size": 3})
+
+        with patch.object(bridge, "restore_from_slot") as mock_restore:
+            bridge.handlers.handle_restore_request("my_slot", payload)
+            mock_restore.assert_called_once_with(
+                "my_slot", strategy="column", step_interval_ms=1500, step_size=3
+            )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_restore_without_animation(self, mock_create_client):
+        """Test manual restore without animation (backward compatibility)."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        with patch.object(bridge, "restore_from_slot") as mock_restore:
+            bridge.handlers.handle_restore_request("my_slot", "")
+            mock_restore.assert_called_once_with(
+                "my_slot", strategy=None, step_interval_ms=None, step_size=None
+            )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_handle_restore_invalid_json_payload(self, mock_create_client):
+        """Test manual restore with invalid JSON payload (should ignore and continue)."""
+        mock_client = Mock()
+        mock_create_client.return_value = mock_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        with patch.object(bridge, "restore_from_slot") as mock_restore:
+            bridge.handlers.handle_restore_request("my_slot", "not valid json")
+            # Should still call restore but without animation params
+            mock_restore.assert_called_once_with(
+                "my_slot", strategy=None, step_interval_ms=None, step_size=None
+            )
 
 
 class TestTimedMessages:
@@ -581,6 +634,9 @@ class TestTimedMessages:
                 strategy=None,
                 step_interval_ms=None,
                 step_size=None,
+                restore_strategy=None,
+                restore_step_interval_ms=None,
+                restore_step_size=None,
             )
 
     @patch("src.vestaboard.create_vestaboard_client")
@@ -696,7 +752,95 @@ class TestTimedMessages:
                 strategy="column",
                 step_interval_ms=1500,
                 step_size=3,
+                restore_strategy=None,
+                restore_step_interval_ms=None,
+                restore_step_size=None,
             )
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_timed_message_restore_inherits_animation(self, mock_create_client):
+        """Test that restore inherits animation params from timed message by default."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_local_client.RATE_LIMIT_SECONDS = 1
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        # Create a mock restore callback to capture params
+        mock_restore_callback = Mock()
+
+        # Replace the restore_callback in timer_manager
+        bridge.timer_manager.restore_callback = mock_restore_callback
+
+        with patch.object(bridge.save_state_manager, "save_current_state", return_value=True):
+            # Schedule timed message with animation
+            timer_id = bridge.timer_manager.schedule_timed_message(
+                message="ALERT",
+                duration_seconds=30,
+                strategy="column",
+                step_interval_ms=1500,
+                step_size=3,
+            )
+
+            # Get and execute the timer callback
+            timer = bridge.timer_manager.active_timers[timer_id]
+            timer.function()
+
+            # Verify restore was called with same animation params
+            mock_restore_callback.assert_called_once()
+            call_args = mock_restore_callback.call_args
+            assert call_args[1]["strategy"] == "column"
+            assert call_args[1]["step_interval_ms"] == 1500
+            assert call_args[1]["step_size"] == 3
+
+    @patch("src.vestaboard.create_vestaboard_client")
+    def test_timed_message_restore_custom_animation(self, mock_create_client):
+        """Test that restore can use different animation than timed message."""
+        from src.vestaboard.local_client import LocalVestaboardClient
+
+        mock_local_client = Mock(spec=LocalVestaboardClient)
+        mock_local_client.write_animated_message.return_value = True
+        mock_local_client.RATE_LIMIT_SECONDS = 1
+        mock_create_client.return_value = mock_local_client
+
+        mqtt_config = MQTTConfig(host="localhost", port=1883)
+        config = create_test_app_config(mqtt_config=mqtt_config)
+        bridge = VestaboardMQTTBridge(config)
+
+        # Create a mock restore callback to capture params
+        mock_restore_callback = Mock()
+
+        # Replace the restore_callback in timer_manager
+        bridge.timer_manager.restore_callback = mock_restore_callback
+
+        with patch.object(bridge.save_state_manager, "save_current_state", return_value=True):
+            # Schedule with different restore animation
+            timer_id = bridge.timer_manager.schedule_timed_message(
+                message="ALERT",
+                duration_seconds=30,
+                strategy="column",
+                step_interval_ms=1500,
+                step_size=3,
+                restore_strategy="reverse-column",
+                restore_step_interval_ms=2000,
+                restore_step_size=5,
+            )
+
+            # Get and execute the timer callback
+            timer = bridge.timer_manager.active_timers[timer_id]
+            timer.function()
+
+            # Verify restore was called with custom animation params
+            mock_restore_callback.assert_called_once()
+            call_args = mock_restore_callback.call_args
+            assert call_args[1]["strategy"] == "reverse-column"
+            assert call_args[1]["step_interval_ms"] == 2000
+            assert call_args[1]["step_size"] == 5
 
     @patch("src.vestaboard.create_vestaboard_client")
     def test_handle_cancel_timer(self, mock_create_client):
