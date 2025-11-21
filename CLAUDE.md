@@ -105,6 +105,14 @@ Configure unique topic prefixes per instance using `MQTT_TOPIC_PREFIX` to contro
 
 ## Recent Changes
 
+### Animated Restore & Timed Messages
+- Animation support for restore operations (manual and automatic)
+- Timed messages now support animation strategies
+- Hybrid approach: restore inherits animation from timed message by default
+- Optional override: specify different animation for restore (e.g., slide in vs slide out)
+- Backward compatible: existing restore operations work without modification
+- All animation features require Local API
+
 ### Enhanced MQTT Interface & Security
 - Multi-Vestaboard support via configurable topic prefixes
 - Comprehensive TLS/SSL security with mutual TLS support
@@ -116,7 +124,7 @@ Configure unique topic prefixes per instance using `MQTT_TOPIC_PREFIX` to contro
 - Support for Vestaboard Note (3x15) and Standard (6x22)
 - BoardType constants for easy configuration
 - Code refactoring: RateLimitMixin extracted (DRY principle)
-- Comprehensive test suite (200+ tests with pytest)
+- Comprehensive test suite (304 tests with pytest)
 
 ### Local API Support
 - Complete integration with Vestaboard Local API
