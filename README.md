@@ -11,8 +11,8 @@ A Python application that bridges MQTT messages to [Vestaboard](https://www.vest
 - **🌐 Dual API Support**: Cloud Read/Write API or Local API
 - **🎬 Animated Transitions**: Six animation strategies with Local API (wave, drift, curtain, row, diagonal, random)
 - **💾 Save States**: Persistent state storage using MQTT retained messages with slot management
-- **⏰ Timed Messages**: Display messages for specified durations with automatic restoration
-- **🎯 Smart Restoration**: Automatic save/restore functionality with timer management
+- **⏰ Timed Messages**: Display messages for specified durations with automatic restoration and optional animation
+- **🎯 Smart Restoration**: Automatic save/restore functionality with timer management and optional animation
 - **📊 Monitoring**: Built-in health checks, metrics, and Last Will & Testament support
 - **🐳 Docker Ready**: Complete containerization with security and monitoring
 - **🔍 Debug Friendly**: Character-by-character layout previews and structured logging
@@ -255,8 +255,14 @@ mosquitto_pub -t "vestaboard/message" -m '{"text": "Welcome Home"}'
 # Save current display to slot "backup1"
 mosquitto_pub -t "vestaboard/save/backup1" -m ""
 
-# Restore from slot "backup1"
+# Restore from slot "backup1" (instant)
 mosquitto_pub -t "vestaboard/restore/backup1" -m ""
+
+# Restore with animation (Local API only)
+mosquitto_pub -t "vestaboard/restore/backup1" -m '{
+  "strategy": "column",
+  "step_interval_ms": 1500
+}'
 
 # Delete saved state
 mosquitto_pub -t "vestaboard/delete/backup1" -m ""
@@ -276,6 +282,22 @@ mosquitto_pub -t "vestaboard/timed-message" -m '{
   "message": "Emergency Alert!",
   "duration_seconds": 60,
   "restore_slot": "normal_display"
+}'
+
+# Animated timed message (Local API only)
+mosquitto_pub -t "vestaboard/timed-message" -m '{
+  "message": "Meeting Starting!",
+  "duration_seconds": 30,
+  "strategy": "edges-to-center",
+  "step_interval_ms": 1000
+}'
+
+# Animated timed message with different restore animation
+mosquitto_pub -t "vestaboard/timed-message" -m '{
+  "message": "Alert!",
+  "duration_seconds": 45,
+  "strategy": "column",
+  "restore_strategy": "reverse-column"
 }'
 
 # List active timers

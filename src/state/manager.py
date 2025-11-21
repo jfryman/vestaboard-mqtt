@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 import paho.mqtt.client as mqtt
 
+from ..vestaboard.local_client import LocalVestaboardClient
+
 if TYPE_CHECKING:
     from ..config import AppConfig
     from ..vestaboard import BaseVestaboardClient
@@ -172,13 +174,22 @@ class SaveStateManager:
 
         return layout
 
-    def restore_from_data(self, save_data: Dict) -> bool:
-        """Restore state from save data dictionary.
+    def restore_from_data(
+        self,
+        save_data: Dict,
+        strategy: Optional[str] = None,
+        step_interval_ms: Optional[int] = None,
+        step_size: Optional[int] = None,
+    ) -> bool:
+        """Restore state from save data dictionary with optional animation.
 
         Supports multiple legacy layout formats for backward compatibility.
 
         Args:
             save_data: Dictionary containing layout and metadata
+            strategy: Optional animation strategy for Local API
+            step_interval_ms: Optional delay between animation steps (1-60000ms)
+            step_size: Optional number of updates to apply simultaneously (1-132)
 
         Returns:
             True if successful, False otherwise
@@ -198,14 +209,35 @@ class SaveStateManager:
             if layout is None:
                 return False
 
-            # Write to Vestaboard
-            if not self.vestaboard_client.write_message(layout):
-                self.logger.error("Failed to write restored state to Vestaboard")
+            # Determine if animation is requested and supported
+            use_animation = strategy and isinstance(
+                self.vestaboard_client, LocalVestaboardClient
+            )
+
+            # Write to Vestaboard with or without animation
+            if use_animation:
+                success = self.vestaboard_client.write_animated_message(
+                    message=layout,
+                    strategy=strategy,
+                    step_interval_ms=step_interval_ms,
+                    step_size=step_size,
+                )
+                message_type = f"animated restore (strategy={strategy})"
+            else:
+                if strategy:
+                    self.logger.warning(
+                        f"Animation strategy '{strategy}' ignored - only supported with Local API"
+                    )
+                success = self.vestaboard_client.write_message(layout)
+                message_type = "restore"
+
+            if not success:
+                self.logger.error(f"Failed to write {message_type} to Vestaboard")
                 return False
 
             # Log success
             saved_at = save_data.get("saved_at", 0)
-            self.logger.info(f"Restored state from {time.ctime(saved_at)}")
+            self.logger.info(f"Restored state from {time.ctime(saved_at)} via {message_type}")
             return True
 
         except Exception as e:

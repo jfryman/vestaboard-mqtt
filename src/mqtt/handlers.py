@@ -77,14 +77,33 @@ class MessageHandlers:
         else:
             self.logger.error(f"Failed to save state to slot '{slot}'")
 
-    def handle_restore_request(self, slot: str) -> None:
-        """Handle restore state request.
+    def handle_restore_request(self, slot: str, payload: str = "") -> None:
+        """Handle restore state request with optional animation.
 
         Args:
             slot: Save slot name to restore from
+            payload: Optional JSON payload with animation params (strategy, step_interval_ms, step_size)
         """
+        strategy = None
+        step_interval_ms = None
+        step_size = None
+
+        # Parse optional animation parameters from payload
+        if payload and payload.strip():
+            try:
+                data = json.loads(payload)
+                strategy = data.get("strategy")
+                step_interval_ms = data.get("step_interval_ms")
+                step_size = data.get("step_size")
+            except json.JSONDecodeError:
+                self.logger.warning(f"Invalid JSON in restore payload, ignoring: {payload[:100]}")
+            except Exception as e:
+                self.logger.warning(f"Error parsing restore payload: {e}")
+
         self.logger.info(f"Requested restore from slot '{slot}'")
-        self.bridge.restore_from_slot(slot)
+        self.bridge.restore_from_slot(
+            slot, strategy=strategy, step_interval_ms=step_interval_ms, step_size=step_size
+        )
 
     def handle_delete(self, slot: str) -> None:
         """Handle delete saved state request.
@@ -102,20 +121,34 @@ class MessageHandlers:
         """Handle timed message request via MQTT.
 
         Args:
-            payload: JSON payload with message, duration, and optional restore_slot
+            payload: JSON payload with message, duration, optional restore_slot, and animation params
         """
         try:
             data = json.loads(payload)
             message = data.get("message", "")
             duration_seconds = data.get("duration_seconds", 60)
             restore_slot = data.get("restore_slot")
+            strategy = data.get("strategy")
+            step_interval_ms = data.get("step_interval_ms")
+            step_size = data.get("step_size")
+            restore_strategy = data.get("restore_strategy")
+            restore_step_interval_ms = data.get("restore_step_interval_ms")
+            restore_step_size = data.get("restore_step_size")
 
             if not message:
                 self.logger.error("Timed message request missing 'message' field")
                 return
 
             timer_id = self.bridge.timer_manager.schedule_timed_message(
-                message, duration_seconds, restore_slot
+                message=message,
+                duration_seconds=duration_seconds,
+                restore_slot=restore_slot,
+                strategy=strategy,
+                step_interval_ms=step_interval_ms,
+                step_size=step_size,
+                restore_strategy=restore_strategy,
+                restore_step_interval_ms=restore_step_interval_ms,
+                restore_step_size=restore_step_size,
             )
 
             # Optionally publish timer ID back to a response topic

@@ -68,11 +68,30 @@ Save current display state to named slot using MQTT retained messages.
 **Storage:** Persistent via `vestaboard/states/{slot}` retained message
 
 #### `vestaboard/restore/{slot}`
-Restore display from named slot.
+Restore display from named slot with optional animation.
 
-**Topic Pattern:** `vestaboard/restore/meeting-room`  
-**Payload:** Empty (any content ignored)  
-**Behavior:** Fetches from `vestaboard/states/{slot}` and displays
+**Topic Pattern:** `vestaboard/restore/meeting-room`
+**Payload Options:**
+- Empty: Instant restore without animation
+- JSON with animation params (Local API only):
+  ```json
+  {
+    "strategy": "column",
+    "step_interval_ms": 1500,
+    "step_size": 3
+  }
+  ```
+
+**Optional JSON Fields:**
+- `strategy` (string): Animation strategy (same options as `vestaboard/message/{strategy}`)
+- `step_interval_ms` (int): Delay between animation steps (1-60000ms)
+- `step_size` (int): Number of updates to apply simultaneously (1-132)
+
+**Requirements:**
+- Animation only available with Local API (`VESTABOARD_LOCAL_API_KEY` configured)
+- Falls back to instant restore with Cloud API (animation params ignored with warning)
+
+**Behavior:** Fetches from `vestaboard/states/{slot}` and displays with optional animation
 
 #### `vestaboard/delete/{slot}`
 Delete saved state from named slot.
@@ -84,7 +103,7 @@ Delete saved state from named slot.
 ### Timed Messages
 
 #### `vestaboard/timed-message`
-Send timed message with automatic restore functionality.
+Send timed message with automatic restore functionality and optional animation.
 
 **Payload Format (JSON):**
 ```json
@@ -92,7 +111,13 @@ Send timed message with automatic restore functionality.
   "message": "Meeting in 5 minutes!",
   "duration_seconds": 300,
   "restore_slot": "office-default",
-  "response_topic": "my-app/timer-response"
+  "response_topic": "my-app/timer-response",
+  "strategy": "column",
+  "step_interval_ms": 1500,
+  "step_size": 3,
+  "restore_strategy": "reverse-column",
+  "restore_step_interval_ms": 2000,
+  "restore_step_size": 5
 }
 ```
 
@@ -103,6 +128,19 @@ Send timed message with automatic restore functionality.
 - `duration_seconds` (int): Display duration (default: 60)
 - `restore_slot` (string): Slot to restore from (auto-saves if omitted)
 - `response_topic` (string): Topic for timer confirmation response
+
+**Animation Fields (Local API only):**
+- `strategy` (string): Animation strategy for timed message display
+- `step_interval_ms` (int): Animation timing for timed message (1-60000ms)
+- `step_size` (int): Animation step size for timed message (1-132)
+- `restore_strategy` (string): Animation strategy for restore (defaults to `strategy`)
+- `restore_step_interval_ms` (int): Animation timing for restore (defaults to `step_interval_ms`)
+- `restore_step_size` (int): Animation step size for restore (defaults to `step_size`)
+
+**Animation Behavior:**
+- If no restore animation params provided, inherits from timed message animation
+- If restore animation params provided, uses those instead (allows different restore effect)
+- Animation only works with Local API; falls back to instant display with Cloud API
 
 **Response Payload:**
 ```json
